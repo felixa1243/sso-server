@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sso-server/internal/database"
 	"sso-server/internal/server"
 	"strconv"
 	"syscall"
@@ -42,7 +43,10 @@ func gracefulShutdown(fiberServer *server.FiberServer, done chan bool) {
 func main() {
 
 	server := server.New()
-
+	err := database.New().SeedPermissionsAndRoles()
+	if err != nil {
+		log.Fatal(err)
+	}
 	server.RegisterFiberRoutes()
 
 	// Create a done channel to signal when the shutdown is complete
