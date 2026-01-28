@@ -8,7 +8,7 @@
 *.pem
 # Test binary, built with "go test -c"
 *.test
-
+TODO.md
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
