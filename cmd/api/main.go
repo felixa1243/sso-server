@@ -44,11 +44,11 @@ func gracefulShutdown(fiberServer *server.FiberServer, done chan bool) {
 
 func main() {
 
-	privKey, _, err := loadKeys()
+	privKey, pubKey, err := loadKeys()
 	if err != nil {
 		log.Fatal("Could not load RSA KEYS", err)
 	}
-	server := server.New(privKey)
+	server := server.New(privKey, pubKey)
 	errDB := database.New().SeedPermissionsAndRoles()
 	if errDB != nil {
 		log.Fatal(err)

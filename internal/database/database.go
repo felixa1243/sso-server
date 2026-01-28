@@ -49,7 +49,7 @@ func New() Service {
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
-	db.AutoMigrate(&models.User{}, &models.Role{}, &models.Permission{})
+	db.AutoMigrate(&models.User{}, &models.Role{}, &models.Permission{}, &models.UserProfile{})
 	dbInstance = &service{
 		db: db,
 	}

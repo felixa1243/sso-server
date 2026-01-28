@@ -1,8 +1,10 @@
 package server
 
 import (
+	"log"
 	"sso-server/internal/controllers"
 	"sso-server/internal/database"
+	"sso-server/internal/middleware"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -19,12 +21,22 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	}))
 
 	s.App.Get("/", s.HelloWorldHandler)
+	db := database.New().GetDB()
 	authControllers := &controllers.AuthController{
-		DB:         database.New().GetDB(),
+		DB:         db,
+		PrivateKey: s.PrivateKey,
+	}
+	profileControllers := &controllers.UserController{
+		DB:         db,
 		PrivateKey: s.PrivateKey,
 	}
 	s.App.Post("/register/reader", authControllers.ReaderRegister)
 	s.App.Post("/register/editor", authControllers.EditorRegister)
+	if s.PublicKey == nil {
+		log.Fatal("CRITICAL: RSA Public Key is nil. Check your key loading logic in main.go")
+	}
+	auth := middleware.AuthMiddleware(s.PublicKey)
+	s.App.Post("/complete-profile", auth, profileControllers.SetBasicProfile)
 	s.App.Post("/login", authControllers.Login)
 	s.App.Get("/health", s.healthHandler)
 
