@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/rsa"
+
 	"github.com/gofiber/fiber/v2"
 
 	"sso-server/internal/database"
@@ -8,18 +10,18 @@ import (
 
 type FiberServer struct {
 	*fiber.App
-
-	db database.Service
+	db         database.Service
+	PrivateKey *rsa.PrivateKey
 }
 
-func New() *FiberServer {
+func New(privKey *rsa.PrivateKey) *FiberServer {
 	server := &FiberServer{
 		App: fiber.New(fiber.Config{
 			ServerHeader: "sso-server",
 			AppName:      "sso-server",
 		}),
-
-		db: database.New(),
+		PrivateKey: privKey,
+		db:         database.New(),
 	}
 
 	return server

@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sso-server/internal/helper"
 	"sso-server/internal/models"
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	_ "github.com/joho/godotenv/autoload"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -136,13 +138,31 @@ func (s *service) SeedPermissionsAndRoles() error {
 			Name:        "Editor",
 			Permissions: []models.Permission{blogRead, blogWrite},
 		},
+		{
+			Name:        "Administrator",
+			Permissions: []models.Permission{blogRead, blogWrite},
+		},
 	}
+	var UserCreated models.User
+	s.db.Where("email = ?", "felixarajiph@gmail.com").First(&UserCreated)
 
 	for _, r := range roles {
 		if err := s.db.Where(models.Role{Name: r.Name}).FirstOrCreate(&r).Error; err != nil {
 			return err
 		}
 	}
-
+	var adminRole models.Role
+	s.db.Where("name=?", "Administrator").First(&adminRole)
+	if UserCreated.ID == uuid.Nil {
+		UserCreated = models.User{
+			Email:        "felixarajiph@gmail.com",
+			ID:           uuid.New(),
+			PasswordHash: helper.GeneratePassword("password"),
+			RoleID:       adminRole.ID,
+		}
+		if err := s.db.Create(&UserCreated).Error; err != nil {
+			return err
+		}
+	}
 	return nil
 }

@@ -1,6 +1,9 @@
 package server
 
 import (
+	"sso-server/internal/controllers"
+	"sso-server/internal/database"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
@@ -16,7 +19,13 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	}))
 
 	s.App.Get("/", s.HelloWorldHandler)
-
+	authControllers := &controllers.AuthController{
+		DB:         database.New().GetDB(),
+		PrivateKey: s.PrivateKey,
+	}
+	s.App.Post("/register/reader", authControllers.ReaderRegister)
+	s.App.Post("/register/editor", authControllers.EditorRegister)
+	s.App.Post("/login", authControllers.Login)
 	s.App.Get("/health", s.healthHandler)
 
 }
