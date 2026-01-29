@@ -94,7 +94,7 @@ func (ac *AuthController) createUser(c *fiber.Ctx, roleName string) (*models.Use
 }
 
 func (ac *AuthController) ReaderRegister(c *fiber.Ctx) error {
-	user, valErrors, err := ac.createUser(c, "Reader")
+	user, valErrors, err := ac.createUser(c, "Blog:Reader")
 	if valErrors != nil {
 		return c.Status(400).JSON(fiber.Map{
 			"message": "validation error",
@@ -108,7 +108,7 @@ func (ac *AuthController) ReaderRegister(c *fiber.Ctx) error {
 }
 
 func (ac *AuthController) EditorRegister(c *fiber.Ctx) error {
-	user, valErrors, err := ac.createUser(c, "Editor")
+	user, valErrors, err := ac.createUser(c, "Blog:Editor")
 	if valErrors != nil {
 		return c.Status(400).JSON(fiber.Map{
 			"message": "validation error",
