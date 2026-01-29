@@ -109,6 +109,11 @@ func (s *service) GetDB() *gorm.DB {
 	return s.db
 }
 
+type userCreds struct {
+	Email    string
+	Password string
+}
+
 func (s *service) SeedPermissionsAndRoles() error {
 	perms := []models.Permission{
 		{Name: "View Blog", Slug: "blog:read"},
@@ -131,11 +136,11 @@ func (s *service) SeedPermissionsAndRoles() error {
 
 	roles := []models.Role{
 		{
-			Name:        "Reader",
+			Name:        "Blog:Reader",
 			Permissions: []models.Permission{blogRead},
 		},
 		{
-			Name:        "Editor",
+			Name:        "Blog:Editor",
 			Permissions: []models.Permission{blogRead, blogWrite},
 		},
 		{
@@ -144,7 +149,11 @@ func (s *service) SeedPermissionsAndRoles() error {
 		},
 	}
 	var UserCreated models.User
-	s.db.Where("email = ?", "felixarajiph@gmail.com").First(&UserCreated)
+	userCreds := userCreds{
+		Email:    os.Getenv("ADMIN_EMAIL"),
+		Password: os.Getenv("ADMIN_PASSWORD"),
+	}
+	s.db.Where("email = ?", userCreds.Email).First(&UserCreated)
 
 	for _, r := range roles {
 		if err := s.db.Where(models.Role{Name: r.Name}).FirstOrCreate(&r).Error; err != nil {
@@ -155,9 +164,9 @@ func (s *service) SeedPermissionsAndRoles() error {
 	s.db.Where("name=?", "Administrator").First(&adminRole)
 	if UserCreated.ID == uuid.Nil {
 		UserCreated = models.User{
-			Email:        "felixarajiph@gmail.com",
+			Email:        userCreds.Email,
 			ID:           uuid.New(),
-			PasswordHash: helper.GeneratePassword("password"),
+			PasswordHash: helper.GeneratePassword(userCreds.Password),
 			RoleID:       adminRole.ID,
 		}
 		if err := s.db.Create(&UserCreated).Error; err != nil {
