@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"crypto/rsa"
-	"sso-server/internal/database"
+	"os"
 	"sso-server/internal/dto"
 	"sso-server/internal/helper"
 	"sso-server/internal/models"
@@ -76,20 +76,36 @@ func (ac *AuthController) createUser(c *fiber.Ctx, roleName string) (*models.Use
 	if errs := validateStruct(req); errs != nil {
 		return nil, errs, nil
 	}
-
 	var role models.Role
+	if req.Password != req.PasswordConfirm {
+		return nil, nil, fiber.ErrBadRequest
+	}
 	if err := ac.DB.Where("name = ?", roleName).First(&role).Error; err != nil {
 		return nil, nil, err
 	}
-
 	user := models.User{
-		Email:        req.Email,
 		ID:           uuid.New(),
+		Email:        req.Email,
 		PasswordHash: helper.GeneratePassword(req.Password),
 		RoleID:       role.ID,
 	}
+	err := ac.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&user).Error; err != nil {
+			return err
+		}
+		userProfile := models.UserProfile{
+			UserID:   user.ID,
+			FullName: req.FullName,
+		}
 
-	if err := database.New().GetDB().Create(&user).Error; err != nil {
+		if err := tx.Create(&userProfile).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		return nil, nil, err
 	}
 
@@ -97,7 +113,7 @@ func (ac *AuthController) createUser(c *fiber.Ctx, roleName string) (*models.Use
 }
 
 func (ac *AuthController) ReaderRegister(c *fiber.Ctx) error {
-	user, valErrors, err := ac.createUser(c, "Blog:Reader")
+	_, valErrors, err := ac.createUser(c, "Blog:Reader")
 	if valErrors != nil {
 		return c.Status(400).JSON(fiber.Map{
 			"message": "validation error",
@@ -107,7 +123,7 @@ func (ac *AuthController) ReaderRegister(c *fiber.Ctx) error {
 	if err != nil {
 		return nil
 	}
-	return c.Status(201).JSON(ac.mapUser(*user))
+	return c.Redirect("/login")
 }
 
 func (ac *AuthController) EditorRegister(c *fiber.Ctx) error {
@@ -139,7 +155,6 @@ func (ac *AuthController) Login(c *fiber.Ctx) error {
 	}
 
 	redirectURL := c.Query("redirect_url")
-
 	var user models.User
 	res := ac.DB.Preload("Role").Where("email = ?", req.Email).First(&user)
 
@@ -195,5 +210,6 @@ func (ac *AuthController) ShowRegister(c *fiber.Ctx) error {
 func (ac *AuthController) ShowLogin(c *fiber.Ctx) error {
 	return c.Render("login", fiber.Map{
 		"RedirectURL": c.Query("redirect_url"),
+		"AppUrl":      os.Getenv("APP_URL"),
 	})
 }
