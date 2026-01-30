@@ -25,6 +25,7 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	authControllers := &controllers.AuthController{
 		DB:         db,
 		PrivateKey: s.PrivateKey,
+		Redis:      s.db.GetRedis(),
 	}
 	profileControllers := &controllers.UserController{
 		DB:         db,
@@ -33,11 +34,13 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	s.App.Post("/register/reader", authControllers.ReaderRegister)
 	s.App.Post("/register/editor", authControllers.EditorRegister)
 	if s.PublicKey == nil {
-		log.Fatal("CRITICAL: RSA Public Key is nil. Check your key loading logic in main.go")
+		log.Fatal("CRITICAL: RSA Public Key is nil. Check Your Configuration")
 	}
 	auth := middleware.AuthMiddleware(s.PublicKey)
 	s.App.Post("/complete-profile", auth, profileControllers.SetBasicProfile)
 	s.App.Post("/login", authControllers.Login)
+	s.App.Get("/login", authControllers.ShowLogin)
+	s.App.Post("/exchange", authControllers.ExchangeCode)
 	s.App.Get("/health", s.healthHandler)
 
 }

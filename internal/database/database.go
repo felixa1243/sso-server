@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	_ "github.com/joho/godotenv/autoload"
 	"gorm.io/driver/postgres"
@@ -21,10 +22,12 @@ type Service interface {
 	Close() error
 	GetDB() *gorm.DB
 	SeedPermissionsAndRoles() error
+	GetRedis() *redis.Client
 }
 
 type service struct {
-	db *gorm.DB
+	db  *gorm.DB
+	rdb *redis.Client
 }
 
 var (
@@ -53,6 +56,18 @@ func New() Service {
 	dbInstance = &service{
 		db: db,
 	}
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     os.Getenv("REDIS_URL"),
+		Password: os.Getenv("REDIS_PASSWORD"),
+		DB:       0,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := rdb.Ping(ctx).Result(); err != nil {
+		log.Fatal("Could not connect to Redis: ", err)
+	}
+
+	dbInstance.rdb = rdb
 	return dbInstance
 }
 
@@ -174,4 +189,7 @@ func (s *service) SeedPermissionsAndRoles() error {
 		}
 	}
 	return nil
+}
+func (s *service) GetRedis() *redis.Client {
+	return s.rdb
 }
