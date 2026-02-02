@@ -22,6 +22,7 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	s.App.Post("/register/editor", authControllers.EditorRegister)
 	s.App.Post("/login", authControllers.Login)
 	s.App.Get("/login", authControllers.ShowLogin)
+	s.App.Post("/logout", authControllers.Logout)
 	s.App.Post("/exchange", authControllers.ExchangeCode)
 }
 

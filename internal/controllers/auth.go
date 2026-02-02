@@ -7,6 +7,7 @@ import (
 	"sso-server/internal/models"
 	"sso-server/internal/repositories"
 	"sso-server/internal/services"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gofiber/fiber/v2"
@@ -87,12 +88,25 @@ func (ac *AuthController) ExchangeCode(c *fiber.Ctx) error {
 	if err := ac.DB.Preload("Role").First(&user, "id = ?", userID).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
 	}
-	fullname := user.Profile.FullName
+	var userProfie models.UserProfile
+	ac.DB.Where("user_id = ?", user.ID).First(&userProfie)
+	fullname := userProfie.FullName
 	token, err := helper.GenerateToken(user, fullname, ac.PrivateKey)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "token generation failed"})
 	}
-
+	err = ac.Redis.Set(c.Context(), "access_token:"+token, user.ID.String(), 24*time.Hour).Err()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to store session"})
+	}
+	c.Cookie(&fiber.Cookie{
+		Name:     "access_token",
+		Value:    token,
+		Expires:  time.Now().Add(24 * time.Hour),
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: "Lax",
+	})
 	return c.JSON(fiber.Map{
 		"token": token,
 		"user": fiber.Map{
@@ -110,4 +124,7 @@ func (ac *AuthController) ShowLogin(c *fiber.Ctx) error {
 		"RedirectURL": c.Query("redirect_url"),
 		"AppUrl":      os.Getenv("APP_URL"),
 	})
+}
+func (ac *AuthController) Logout(c *fiber.Ctx) error {
+	return ac.UserService.Logout(c)
 }

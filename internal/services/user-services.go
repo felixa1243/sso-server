@@ -124,3 +124,28 @@ func (u *UserServices) Login(c *fiber.Ctx) error {
 	// 3. Redirect back to Next.js Callback with the CODE
 	return c.Redirect(redirectURL + "?code=" + authCode)
 }
+
+func (u *UserServices) Logout(c *fiber.Ctx) error {
+
+	token := c.Cookies("access_token")
+
+	if token != "" {
+		err := u.Redis.Del(c.Context(), "access_token:"+token).Err()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"message": "Failed to invalidate session in cache",
+			})
+		}
+	}
+	c.Cookie(&fiber.Cookie{
+		Name:     "access_token",
+		Value:    "",
+		Expires:  time.Now().Add(-time.Hour),
+		HTTPOnly: true,
+		SameSite: "Lax",
+	})
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Logged out successfully",
+	})
+}

@@ -17,7 +17,7 @@ func GenerateToken(user models.User, fullname string, privateKey *rsa.PrivateKey
 		"jti":      uuid.New().String(),
 		"exp":      jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
 		"iat":      jwt.NewNumericDate(time.Now()),
-		"fullname": "",
+		"fullname": fullname,
 		"email":    user.Email,
 		"role":     user.Role.Name,
 		"user_id":  user.ID.String(),
