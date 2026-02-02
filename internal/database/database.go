@@ -178,15 +178,21 @@ func (s *service) SeedPermissionsAndRoles() error {
 	var adminRole models.Role
 	s.db.Where("name=?", "Administrator").First(&adminRole)
 	if UserCreated.ID == uuid.Nil {
-		UserCreated = models.User{
-			Email:        userCreds.Email,
-			ID:           uuid.New(),
-			PasswordHash: helper.GeneratePassword(userCreds.Password),
-			RoleID:       adminRole.ID,
-		}
-		if err := s.db.Create(&UserCreated).Error; err != nil {
-			return err
-		}
+		return s.db.Transaction(func(tx *gorm.DB) error {
+			UserCreated = models.User{
+				Email:        userCreds.Email,
+				ID:           uuid.New(),
+				PasswordHash: helper.GeneratePassword(userCreds.Password),
+				RoleID:       adminRole.ID,
+			}
+			if err := s.db.Create(&UserCreated).Error; err != nil {
+				return err
+			}
+			if err := s.db.Create(&models.UserProfile{UserID: UserCreated.ID, FullName: "Iqbal"}).Error; err != nil {
+				return err
+			}
+			return nil
+		})
 	}
 	return nil
 }

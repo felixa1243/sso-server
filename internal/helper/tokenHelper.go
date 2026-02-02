@@ -11,15 +11,16 @@ import (
 	"github.com/google/uuid"
 )
 
-func GenerateToken(user models.User, privateKey *rsa.PrivateKey) (string, error) {
+func GenerateToken(user models.User, fullname string, privateKey *rsa.PrivateKey) (string, error) {
 	claims := jwt.MapClaims{
-		"sub":     user.ID.String(),
-		"jti":     uuid.New().String(),
-		"exp":     jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
-		"iat":     jwt.NewNumericDate(time.Now()),
-		"email":   user.Email,
-		"role":    user.Role.Name,
-		"user_id": user.ID.String(),
+		"sub":      user.ID.String(),
+		"jti":      uuid.New().String(),
+		"exp":      jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
+		"iat":      jwt.NewNumericDate(time.Now()),
+		"fullname": "",
+		"email":    user.Email,
+		"role":     user.Role.Name,
+		"user_id":  user.ID.String(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
