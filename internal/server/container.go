@@ -35,24 +35,25 @@ func SetupDI(db *gorm.DB, rdb *redis.Client, key *rsa.PrivateKey, publicKey *rsa
 	do.Provide(injector, func(i do.Injector) (repositories.ProfileRepository, error) {
 		return repositories.NewProfileRepository(do.MustInvoke[*gorm.DB](i)), nil
 	})
+	do.Provide(injector, func(i do.Injector) (repositories.RoleRepository, error) {
+		return repositories.NewRoleRepository(do.MustInvoke[*gorm.DB](i)), nil
+	})
 
 	// Services
-	do.Provide(injector, func(i do.Injector) (*services.UserServices, error) {
+	do.Provide(injector, func(i do.Injector) (services.UserService, error) {
 		repo := do.MustInvoke[repositories.UserRepository](i)
 		profileRepo := do.MustInvoke[repositories.ProfileRepository](i)
+		roleRepo := do.MustInvoke[repositories.RoleRepository](i)
 		redisInstance := do.MustInvoke[*redis.Client](i)
 		privateKey := do.MustInvoke[*rsa.PrivateKey](i)
-		return services.NewUserServices(repo, profileRepo, redisInstance, privateKey), nil
+		return services.NewUserServices(repo, profileRepo, roleRepo, redisInstance, privateKey), nil
 	})
 
 	// Controllers
 	do.Provide(injector, func(i do.Injector) (*controllers.AuthController, error) {
-		return &controllers.AuthController{
-			DB:          do.MustInvoke[*gorm.DB](i),
-			PrivateKey:  do.MustInvoke[*rsa.PrivateKey](i),
-			Redis:       do.MustInvoke[*redis.Client](i),
-			UserService: do.MustInvoke[*services.UserServices](i),
-		}, nil
+		return controllers.NewAuthController(
+			do.MustInvoke[services.UserService](i),
+		), nil
 	})
 
 	return injector

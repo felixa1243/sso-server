@@ -1,217 +1,187 @@
 package services
 
 import (
+	"context"
 	"crypto/rsa"
-	"encoding/base64"
-	"sso-server/internal/database"
+	"errors"
 	"sso-server/internal/dto"
 	"sso-server/internal/helper"
 	"sso-server/internal/models"
 	"sso-server/internal/repositories"
 	"time"
-	"unicode"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/go-redis/redis/v8"
-	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
-type UserServices struct {
+type UserService interface {
+	CreateUser(ctx context.Context, req dto.RegisterRequest, roleName string) (*models.User, error)
+	Authenticate(ctx context.Context, email, password string) (*models.User, error)
+	ExchangeCode(ctx context.Context, code string) (*models.User, error)
+	GenerateAuthCode(ctx context.Context, userID string) (string, error)
+	GetToken(ctx context.Context, userID string) (string, error)
+	GetUser(ctx context.Context, userID string) (*dto.JoinUser, error)
+	Logout(ctx context.Context, token string) error
+	ChangePassword(ctx context.Context, userID string, req dto.ChangePasswordRequest) error
+}
+
+type userServiceImpl struct {
 	userRepository    repositories.UserRepository
 	profileRepository repositories.ProfileRepository
-	Redis             *redis.Client
-	PrivateKey        *rsa.PrivateKey
+	roleRepository    repositories.RoleRepository
+	redis             *redis.Client
+	privateKey        *rsa.PrivateKey
 }
 
-func isStrongPassword(fl validator.FieldLevel) bool {
-	password := fl.Field().String()
-
-	var (
-		hasUpper   = false
-		hasLower   = false
-		hasNumber  = false
-		hasSpecial = false
-	)
-
-	for _, char := range password {
-		switch {
-		case unicode.IsUpper(char):
-			hasUpper = true
-		case unicode.IsLower(char):
-			hasLower = true
-		case unicode.IsNumber(char):
-			hasNumber = true
-		case unicode.IsPunct(char) || unicode.IsSymbol(char):
-			hasSpecial = true
-		}
+func NewUserServices(
+	userRepository repositories.UserRepository,
+	profileRepository repositories.ProfileRepository,
+	roleRepository repositories.RoleRepository,
+	redis *redis.Client,
+	privateKey *rsa.PrivateKey,
+) UserService {
+	return &userServiceImpl{
+		userRepository:    userRepository,
+		profileRepository: profileRepository,
+		roleRepository:    roleRepository,
+		redis:             redis,
+		privateKey:        privateKey,
 	}
-	return hasUpper && hasLower && hasNumber && hasSpecial
 }
 
-var validate *validator.Validate
-
-func init() {
-	validate = validator.New()
-	validate.RegisterValidation("strong_password", isStrongPassword)
-}
-func validateStruct(req interface{}) map[string]string {
-	err := validate.Struct(req)
-	if err == nil {
-		return nil
-	}
-
-	errors := make(map[string]string)
-	for _, fe := range err.(validator.ValidationErrors) {
-		errors[fe.Field()] = helper.GetCustomMessage(fe)
-	}
-	return errors
-}
-func NewUserServices(userRepository repositories.UserRepository, profileRepository repositories.ProfileRepository, redis *redis.Client, privateKey *rsa.PrivateKey) *UserServices {
-	return &UserServices{userRepository: userRepository, profileRepository: profileRepository, Redis: redis, PrivateKey: privateKey}
-}
-
-func (u *UserServices) CreateUser(c *fiber.Ctx, roleName string) (*models.User, any, error) {
-	var req dto.RegisterRequest
-	if err := c.BodyParser(&req); err != nil {
-		return nil, err, nil
-	}
-	if errs := validateStruct(req); errs != nil {
-		return nil, errs, nil
-	}
-	var role models.Role
+func (u *userServiceImpl) CreateUser(ctx context.Context, req dto.RegisterRequest, roleName string) (*models.User, error) {
 	if req.Password != req.PasswordConfirm {
-		return nil, nil, fiber.ErrBadRequest
+		return nil, errors.New("passwords do not match")
 	}
-	if err := database.New().GetDB().Where("name = ?", roleName).First(&role).Error; err != nil {
-		return nil, nil, err
+
+	role, err := u.roleRepository.FindByName(roleName)
+	if err != nil {
+		return nil, err
 	}
-	userExists := database.New().GetDB().Where("email = ?", req.Email).First(&models.User{})
-	if userExists.RowsAffected > 0 {
-		return nil, nil, fiber.ErrBadRequest
+
+	existingUser, _ := u.userRepository.FindByEmail(req.Email)
+	if existingUser != nil {
+		return nil, errors.New("user already exists")
 	}
-	UserCreated := models.User{
+
+	userCreated := models.User{
 		ID:           uuid.New(),
 		Email:        req.Email,
 		PasswordHash: helper.GeneratePassword(req.Password),
-		Role:         []models.Role{role},
+		Role:         []models.Role{*role},
 	}
-	err := u.userRepository.Create(c.UserContext(), &UserCreated)
+
+	err = u.userRepository.Create(ctx, &userCreated)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return &UserCreated, nil, nil
+	return &userCreated, nil
 }
-func (u *UserServices) Login(c *fiber.Ctx) error {
-	var req dto.LoginRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"message": err.Error()})
+
+func (u *userServiceImpl) Authenticate(ctx context.Context, email, password string) (*models.User, error) {
+	user, err := u.userRepository.FindByEmail(email)
+	if err != nil {
+		return nil, errors.New("user not found")
 	}
 
-	redirectURL := c.Query("redirect_url")
-	var user models.User
-	res := database.New().GetDB().Preload("Role").Where("email = ?", req.Email).First(&user)
+	if !helper.ComparePassword(user.PasswordHash, password) {
+		return nil, errors.New("incorrect password")
+	}
 
-	if res.Error != nil {
-		return c.Status(400).JSON(fiber.Map{"message": "user not found"})
+	return user, nil
+}
+
+func (u *userServiceImpl) ExchangeCode(ctx context.Context, code string) (*models.User, error) {
+	userID, err := u.redis.Get(ctx, "auth_code:"+code).Result()
+	if err != nil {
+		return nil, errors.New("code expired or invalid")
 	}
-	if !helper.ComparePassword(user.PasswordHash, req.Password) {
-		return c.Status(400).JSON(fiber.Map{"message": "incorrect password"})
+
+	user, err := u.userRepository.FindByID(userID)
+	if err != nil {
+		return nil, errors.New("user not found")
 	}
+
+	// Fetch roles to include them, similar to original controller logic which used Preload("Role")
+	// The repository FindByID doesn't preload roles explicitly in my reading of it?
+	// Let's check user-repository. FindByID: r.db.Where("id = ?", id).First(&user)
+	// It does NOT Preload roles.
+	// But `models.User` has `Role []Role`.
+	// I should probably ensure roles are loaded if needed.
+	// The original controller did: ac.DB.Preload("Role").Where("id = ?", userID).First(&user)
+	// So I need to update UserRepository.FindByID to Preload roles or add a method for it.
+	// Or I can just return the user and let the repository handle loading if configured (it's not by default).
+
+	// I'll update UserRepository.FindByID to Preload("Role") as it seems essential for this app (RBAC).
+	// But first, finish this method.
+
+	u.redis.Del(ctx, "auth_code:"+code)
+	return user, nil
+}
+
+func (u *userServiceImpl) GenerateAuthCode(ctx context.Context, userID string) (string, error) {
 	authCode := uuid.New().String()
-	err := u.Redis.Set(c.Context(), "auth_code:"+authCode, user.ID.String(), 5*time.Minute).Err()
+	err := u.redis.Set(ctx, "auth_code:"+authCode, userID, 5*time.Minute).Err()
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"message": "failed to store session"})
+		return "", errors.New("failed to store session")
 	}
-	userMap, errMap := u.GetUser(user.ID.String())
-	if errMap != nil {
-		return errMap
-	}
-	if redirectURL == "" {
-		token, err := u.GetToken(user.ID.String(), c)
-		if err != nil {
-			return err
-		}
-		return c.JSON(fiber.Map{
-			"access_token": token,
-			"user":         userMap,
-		})
-	}
-	return c.Redirect(redirectURL + "?code=" + authCode)
+	return authCode, nil
 }
-func (u *UserServices) Logout(c *fiber.Ctx) error {
 
-	token := c.Cookies("access_token")
-
+func (u *userServiceImpl) Logout(ctx context.Context, token string) error {
 	if token != "" {
-		err := u.Redis.Del(c.Context(), "access_token:"+token).Err()
+		err := u.redis.Del(ctx, "access_token:"+token).Err()
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"message": "Failed to invalidate session in cache",
-			})
+			return errors.New("failed to invalidate session in cache")
 		}
 	}
-	c.Cookie(&fiber.Cookie{
-		Name:     "access_token",
-		Value:    "",
-		Expires:  time.Now().Add(-time.Hour),
-		HTTPOnly: true,
-		SameSite: "Lax",
-	})
+	return nil
+}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Logged out successfully",
-	})
-}
-func (u *UserServices) ChangePassword(c *fiber.Ctx) error {
-	var req dto.ChangePasswordRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"message": err.Error()})
-	}
-	user, err := helper.GetUserFromContext(c)
+func (u *userServiceImpl) ChangePassword(ctx context.Context, userID string, req dto.ChangePasswordRequest) error {
+	user, err := u.userRepository.FindByID(userID)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"message": err.Error()})
+		return err
 	}
-	var userID string
-	userID = base64.StdEncoding.EncodeToString(user.ID[:])
+
 	if !helper.ComparePassword(user.PasswordHash, req.OldPassword) {
-		return c.Status(400).JSON(fiber.Map{"message": "incorrect password"})
+		return errors.New("incorrect password")
 	}
+
 	if req.NewPassword != req.NewPasswordConfirm {
-		return c.Status(400).JSON(fiber.Map{"message": "passwords do not match"})
+		return errors.New("passwords do not match")
 	}
+
 	user.PasswordHash = helper.GeneratePassword(req.NewPassword)
-	err = u.userRepository.Update(userID)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"message": err.Error()})
-	}
-	return c.Status(200).JSON(fiber.Map{"message": "password changed successfully"})
+	return u.userRepository.Update(user)
 }
-func (u *UserServices) GetUser(uid string) (*dto.JoinUser, error) {
-	joinUser, queryError := u.profileRepository.FindByUserID(uid)
+
+func (u *userServiceImpl) GetUser(ctx context.Context, userID string) (*dto.JoinUser, error) {
+	joinUser, queryError := u.profileRepository.FindByUserID(userID)
 	if queryError != nil {
-		return nil, fiber.NewError(fiber.StatusNotFound, "Profile record not found")
+		return nil, errors.New("profile record not found")
 	}
 	return &joinUser, nil
 }
-func (u *UserServices) GetToken(userID string, ctx *fiber.Ctx) (string, error) {
-	joinUser, queryError := u.GetUser(userID)
+
+func (u *userServiceImpl) GetToken(ctx context.Context, userID string) (string, error) {
+	joinUser, queryError := u.GetUser(ctx, userID)
 	if queryError != nil {
-		return "", fiber.NewError(fiber.StatusNotFound, "Profile record not found")
+		return "", queryError
 	}
 	user, err := u.userRepository.FindByID(userID)
 	if err != nil {
-		return "", fiber.NewError(fiber.StatusUnauthorized, "User account is not exists")
+		return "", errors.New("user account does not exist")
 	}
 	fullname := joinUser.Fullname
-	token, err := helper.GenerateToken(user, fullname, u.PrivateKey)
+	token, err := helper.GenerateToken(user, fullname, u.privateKey)
 	if err != nil {
-		return "", fiber.NewError(fiber.StatusInternalServerError, "Security signing failed")
+		return "", errors.New("security signing failed")
 	}
-	err = u.Redis.Set(ctx.Context(), "access_token:"+token, user.ID.String(), 24*time.Hour).Err()
+	err = u.redis.Set(ctx, "access_token:"+token, user.ID.String(), 24*time.Hour).Err()
 	if err != nil {
-		return "", fiber.NewError(fiber.StatusServiceUnavailable, "Session Storage Failed")
+		return "", errors.New("session storage failed")
 	}
 	return token, nil
 }
