@@ -14,7 +14,7 @@ type UserRepository interface {
 	FindByID(id string) (*models.User, error)
 	FindAll() ([]models.User, error)
 	Delete(id string) error
-	Update(id string) error
+	Update(user *models.User) error
 }
 
 type userRepositoryImpl struct {
@@ -42,7 +42,7 @@ func (r *userRepositoryImpl) Create(ctx context.Context, user *models.User) erro
 }
 func (r *userRepositoryImpl) FindByEmail(email string) (*models.User, error) {
 	var user models.User
-	if err := r.db.Where("email = ?", email).First(&user).Error; err != nil {
+	if err := r.db.Preload("Role").Where("email = ?", email).First(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -50,7 +50,7 @@ func (r *userRepositoryImpl) FindByEmail(email string) (*models.User, error) {
 
 func (r *userRepositoryImpl) FindByID(id string) (*models.User, error) {
 	var user models.User
-	if err := r.db.Where("id = ?", id).First(&user).Error; err != nil {
+	if err := r.db.Preload("Role").Where("id = ?", id).First(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -58,7 +58,7 @@ func (r *userRepositoryImpl) FindByID(id string) (*models.User, error) {
 
 func (r *userRepositoryImpl) FindAll() ([]models.User, error) {
 	var users []models.User
-	if err := r.db.Find(&users).Error; err != nil {
+	if err := r.db.Preload("Role").Find(&users).Error; err != nil {
 		return nil, err
 	}
 	return users, nil
@@ -77,8 +77,8 @@ func (r *userRepositoryImpl) Delete(id string) error {
 
 	return nil
 }
-func (r *userRepositoryImpl) Update(id string) error {
-	result := r.db.Model(&models.User{}).Where("id = ?", id).Update("role", "admin")
+func (r *userRepositoryImpl) Update(user *models.User) error {
+	result := r.db.Save(user)
 	if result.Error != nil {
 		return result.Error
 	}

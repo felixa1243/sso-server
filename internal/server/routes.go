@@ -17,6 +17,8 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	injector := SetupDI(s.db.GetDB(), s.db.GetRedis(), s.PrivateKey, s.PublicKey)
 	// Resolve the AuthController
 	authControllers := do.MustInvoke[*controllers.AuthController](injector)
+	// Resolve Middleware
+	authMiddleware := do.MustInvoke[fiber.Handler](injector)
 
 	// Routes
 	s.App.Post("/register/reader", authControllers.ReaderRegister)
@@ -25,6 +27,9 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	s.App.Get("/login", authControllers.ShowLogin)
 	s.App.Post("/logout", authControllers.Logout)
 	s.App.Post("/exchange", authControllers.ExchangeCode)
+
+	// Protected Routes
+	s.App.Post("/change-password", authMiddleware, authControllers.ChangePassword)
 }
 
 func (s *FiberServer) HelloWorldHandler(c *fiber.Ctx) error {
