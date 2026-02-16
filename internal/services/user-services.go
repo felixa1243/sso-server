@@ -1,6 +1,8 @@
 package services
 
 import (
+	"crypto/rsa"
+	"encoding/base64"
 	"sso-server/internal/database"
 	"sso-server/internal/dto"
 	"sso-server/internal/helper"
@@ -16,8 +18,10 @@ import (
 )
 
 type UserServices struct {
-	userRepository repositories.UserRepository
-	Redis          *redis.Client
+	userRepository    repositories.UserRepository
+	profileRepository repositories.ProfileRepository
+	Redis             *redis.Client
+	PrivateKey        *rsa.PrivateKey
 }
 
 func isStrongPassword(fl validator.FieldLevel) bool {
@@ -63,8 +67,8 @@ func validateStruct(req interface{}) map[string]string {
 	}
 	return errors
 }
-func NewUserServices(userRepository repositories.UserRepository, redis *redis.Client) *UserServices {
-	return &UserServices{userRepository: userRepository, Redis: redis}
+func NewUserServices(userRepository repositories.UserRepository, profileRepository repositories.ProfileRepository, redis *redis.Client, privateKey *rsa.PrivateKey) *UserServices {
+	return &UserServices{userRepository: userRepository, profileRepository: profileRepository, Redis: redis, PrivateKey: privateKey}
 }
 
 func (u *UserServices) CreateUser(c *fiber.Ctx, roleName string) (*models.User, any, error) {
@@ -90,7 +94,7 @@ func (u *UserServices) CreateUser(c *fiber.Ctx, roleName string) (*models.User, 
 		ID:           uuid.New(),
 		Email:        req.Email,
 		PasswordHash: helper.GeneratePassword(req.Password),
-		RoleID:       role.ID,
+		Role:         []models.Role{role},
 	}
 	err := u.userRepository.Create(c.UserContext(), &UserCreated)
 	if err != nil {
@@ -120,11 +124,22 @@ func (u *UserServices) Login(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"message": "failed to store session"})
 	}
-
-	// 3. Redirect back to Next.js Callback with the CODE
+	userMap, errMap := u.GetUser(user.ID.String())
+	if errMap != nil {
+		return errMap
+	}
+	if redirectURL == "" {
+		token, err := u.GetToken(user.ID.String(), c)
+		if err != nil {
+			return err
+		}
+		return c.JSON(fiber.Map{
+			"access_token": token,
+			"user":         userMap,
+		})
+	}
 	return c.Redirect(redirectURL + "?code=" + authCode)
 }
-
 func (u *UserServices) Logout(c *fiber.Ctx) error {
 
 	token := c.Cookies("access_token")
@@ -148,4 +163,55 @@ func (u *UserServices) Logout(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Logged out successfully",
 	})
+}
+func (u *UserServices) ChangePassword(c *fiber.Ctx) error {
+	var req dto.ChangePasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"message": err.Error()})
+	}
+	user, err := helper.GetUserFromContext(c)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"message": err.Error()})
+	}
+	var userID string
+	userID = base64.StdEncoding.EncodeToString(user.ID[:])
+	if !helper.ComparePassword(user.PasswordHash, req.OldPassword) {
+		return c.Status(400).JSON(fiber.Map{"message": "incorrect password"})
+	}
+	if req.NewPassword != req.NewPasswordConfirm {
+		return c.Status(400).JSON(fiber.Map{"message": "passwords do not match"})
+	}
+	user.PasswordHash = helper.GeneratePassword(req.NewPassword)
+	err = u.userRepository.Update(userID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"message": err.Error()})
+	}
+	return c.Status(200).JSON(fiber.Map{"message": "password changed successfully"})
+}
+func (u *UserServices) GetUser(uid string) (*dto.JoinUser, error) {
+	joinUser, queryError := u.profileRepository.FindByUserID(uid)
+	if queryError != nil {
+		return nil, fiber.NewError(fiber.StatusNotFound, "Profile record not found")
+	}
+	return &joinUser, nil
+}
+func (u *UserServices) GetToken(userID string, ctx *fiber.Ctx) (string, error) {
+	joinUser, queryError := u.GetUser(userID)
+	if queryError != nil {
+		return "", fiber.NewError(fiber.StatusNotFound, "Profile record not found")
+	}
+	user, err := u.userRepository.FindByID(userID)
+	if err != nil {
+		return "", fiber.NewError(fiber.StatusUnauthorized, "User account is not exists")
+	}
+	fullname := joinUser.Fullname
+	token, err := helper.GenerateToken(user, fullname, u.PrivateKey)
+	if err != nil {
+		return "", fiber.NewError(fiber.StatusInternalServerError, "Security signing failed")
+	}
+	err = u.Redis.Set(ctx.Context(), "access_token:"+token, user.ID.String(), 24*time.Hour).Err()
+	if err != nil {
+		return "", fiber.NewError(fiber.StatusServiceUnavailable, "Session Storage Failed")
+	}
+	return token, nil
 }

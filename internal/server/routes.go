@@ -13,6 +13,7 @@ func (s *FiberServer) RegisterFiberRoutes() {
 		AllowOrigins: "*",
 		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS,PATCH",
 	}))
+
 	injector := SetupDI(s.db.GetDB(), s.db.GetRedis(), s.PrivateKey, s.PublicKey)
 	// Resolve the AuthController
 	authControllers := do.MustInvoke[*controllers.AuthController](injector)

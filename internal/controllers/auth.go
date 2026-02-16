@@ -3,10 +3,9 @@ package controllers
 import (
 	"crypto/rsa"
 	"os"
-	"sso-server/internal/helper"
 	"sso-server/internal/models"
-	"sso-server/internal/repositories"
 	"sso-server/internal/services"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -21,12 +20,12 @@ type AuthController struct {
 	UserService *services.UserServices
 }
 
-func NewAuthController(db *gorm.DB, privateKey *rsa.PrivateKey, redis *redis.Client) *AuthController {
+func NewAuthController(db *gorm.DB, privateKey *rsa.PrivateKey, redis *redis.Client, userService *services.UserServices) *AuthController {
 	return &AuthController{
 		DB:          db,
 		PrivateKey:  privateKey,
 		Redis:       redis,
-		UserService: services.NewUserServices(repositories.NewUserRepository(db), redis),
+		UserService: userService,
 	}
 }
 func (ac *AuthController) createUser(c *fiber.Ctx, roleName string) (*models.User, interface{}, error) {
@@ -61,12 +60,14 @@ func (ac *AuthController) EditorRegister(c *fiber.Ctx) error {
 	return c.Status(201).JSON(ac.mapUser(*user))
 }
 func (ac *AuthController) mapUser(user models.User) fiber.Map {
-	var role models.Role
-	ac.DB.Where("id = ?", user.RoleID).First(&role)
+	rolesString := ""
+	for _, role := range user.Role {
+		rolesString += role.Name
+	}
 	return fiber.Map{
 		"id":    user.ID,
 		"email": user.Email,
-		"role":  role.Name,
+		"role":  rolesString,
 	}
 }
 func (ac *AuthController) Login(c *fiber.Ctx) error {
@@ -76,29 +77,35 @@ func (ac *AuthController) ExchangeCode(c *fiber.Ctx) error {
 	var req struct {
 		Code string `json:"code"`
 	}
+
+	// Parse request body first
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
 	}
+
+	// Get userID from Redis
 	userID, err := ac.Redis.Get(c.Context(), "auth_code:"+req.Code).Result()
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "code expired or invalid"})
 	}
-	ac.Redis.Del(c.Context(), "auth_code:"+req.Code)
+
+	// Fetch user by ID
 	var user models.User
-	if err := ac.DB.Preload("Role").First(&user, "id = ?", userID).Error; err != nil {
+	result := ac.DB.Preload("Role").Where("id = ?", userID).First(&user)
+	if result.Error != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
 	}
-	var userProfie models.UserProfile
-	ac.DB.Where("user_id = ?", user.ID).First(&userProfie)
-	fullname := userProfie.FullName
-	token, err := helper.GenerateToken(user, fullname, ac.PrivateKey)
+
+	// Generate token
+	token, err := ac.UserService.GetToken(userID, c)
 	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "token generation failed"})
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
-	err = ac.Redis.Set(c.Context(), "access_token:"+token, user.ID.String(), 24*time.Hour).Err()
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to store session"})
-	}
+
+	// Delete code after successful exchange
+	ac.Redis.Del(c.Context(), "auth_code:"+req.Code)
+
+	// Set cookie
 	c.Cookie(&fiber.Cookie{
 		Name:     "access_token",
 		Value:    token,
@@ -107,11 +114,18 @@ func (ac *AuthController) ExchangeCode(c *fiber.Ctx) error {
 		Secure:   true,
 		SameSite: "Lax",
 	})
+
+	// Build role string
+	var roleString strings.Builder
+	for _, role := range user.Role {
+		roleString.WriteString(role.Name)
+	}
+
 	return c.JSON(fiber.Map{
 		"token": token,
 		"user": fiber.Map{
 			"email": user.Email,
-			"role":  user.Role.Name,
+			"role":  roleString.String(),
 		},
 	})
 }

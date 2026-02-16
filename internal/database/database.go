@@ -183,7 +183,7 @@ func (s *service) SeedPermissionsAndRoles() error {
 				Email:        userCreds.Email,
 				ID:           uuid.New(),
 				PasswordHash: helper.GeneratePassword(userCreds.Password),
-				RoleID:       adminRole.ID,
+				Role:         []models.Role{adminRole},
 			}
 			if err := s.db.Create(&UserCreated).Error; err != nil {
 				return err

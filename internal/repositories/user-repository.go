@@ -14,6 +14,7 @@ type UserRepository interface {
 	FindByID(id string) (*models.User, error)
 	FindAll() ([]models.User, error)
 	Delete(id string) error
+	Update(id string) error
 }
 
 type userRepositoryImpl struct {
@@ -74,5 +75,12 @@ func (r *userRepositoryImpl) Delete(id string) error {
 		return errors.New("user not found")
 	}
 
+	return nil
+}
+func (r *userRepositoryImpl) Update(id string) error {
+	result := r.db.Model(&models.User{}).Where("id = ?", id).Update("role", "admin")
+	if result.Error != nil {
+		return result.Error
+	}
 	return nil
 }

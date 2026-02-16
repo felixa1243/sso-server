@@ -4,6 +4,7 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"sso-server/internal/models"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,16 +12,21 @@ import (
 	"github.com/google/uuid"
 )
 
-func GenerateToken(user models.User, fullname string, privateKey *rsa.PrivateKey) (string, error) {
+func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKey) (string, error) {
+	var rolesString strings.Builder
+	for _, role := range user.Role {
+		rolesString.WriteString(role.Name)
+	}
 	claims := jwt.MapClaims{
-		"sub":      user.ID.String(),
-		"jti":      uuid.New().String(),
-		"exp":      jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
-		"iat":      jwt.NewNumericDate(time.Now()),
-		"fullname": fullname,
-		"email":    user.Email,
-		"role":     user.Role.Name,
-		"user_id":  user.ID.String(),
+		"sub":        user.ID.String(),
+		"jti":        uuid.New().String(),
+		"exp":        jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
+		"iat":        jwt.NewNumericDate(time.Now()),
+		"fullname":   fullname,
+		"email":      user.Email,
+		"role":       rolesString.String(),
+		"user_id":    user.ID.String(),
+		"avatar_uri": user.Profile.AvatarURI,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
@@ -53,7 +59,7 @@ func GetUserFromContext(c *fiber.Ctx) (models.User, error) {
 	}
 
 	if roleName, ok := claims["role"].(string); ok {
-		user.Role = models.Role{Name: roleName}
+		user.Role = []models.Role{{Name: roleName}}
 	}
 
 	return user, nil

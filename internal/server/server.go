@@ -2,6 +2,8 @@ package server
 
 import (
 	"crypto/rsa"
+	"errors"
+	"fmt"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -24,6 +26,21 @@ func New(privKey *rsa.PrivateKey, pubKey *rsa.PublicKey) *FiberServer {
 			ServerHeader: "sso-server",
 			AppName:      "sso-server",
 			Views:        engine,
+			ErrorHandler: func(c *fiber.Ctx, err error) error {
+				code := fiber.StatusInternalServerError
+				message := "An Internal server error occured"
+				var e *fiber.Error
+				if errors.As(err, &e) {
+					code = e.Code
+					message = e.Message
+				}
+
+				fmt.Printf("[ERROR] %d: %v\n", code, err)
+				return c.Status(code).JSON(fiber.Map{
+					"status":  false,
+					"message": message,
+				})
+			},
 		}),
 		PrivateKey: privKey,
 		PublicKey:  pubKey,
@@ -32,6 +49,7 @@ func New(privKey *rsa.PrivateKey, pubKey *rsa.PublicKey) *FiberServer {
 	server.App.Use(logger.New(logger.Config{
 		Format: "[${ip}]:${port} ${status} - ${method} ${path}\n",
 	}))
+	server.App.Static("/uploads", "./uploads")
 	server.Static("/assets", "./resources/assets")
 	return server
 }

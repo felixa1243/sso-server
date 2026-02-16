@@ -12,4 +12,5 @@ type UserProfile struct {
 	FullName  string    `gorm:"type:varchar(255);not null"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime"`
+	AvatarURI string    `gorm:"type:varchar(255);not null;default:'/uploads/default.webp'"`
 }
