@@ -58,10 +58,11 @@ func SetupDI(db *gorm.DB, rdb *redis.Client, key *rsa.PrivateKey, publicKey *rsa
 		profileRepo := do.MustInvoke[repositories.ProfileRepository](i)
 		roleRepo := do.MustInvoke[repositories.RoleRepository](i)
 		domainRepo := do.MustInvoke[repositories.DomainRepository](i)
+		punishmentRepo := do.MustInvoke[repositories.PunishmentRepository](i)
 		eventService := do.MustInvoke[services.EventService](i)
 		redisInstance := do.MustInvoke[*redis.Client](i)
 		privateKey := do.MustInvoke[*rsa.PrivateKey](i)
-		return services.NewUserServices(repo, profileRepo, roleRepo, domainRepo, eventService, redisInstance, privateKey), nil
+		return services.NewUserServices(repo, profileRepo, roleRepo, domainRepo, punishmentRepo, eventService, redisInstance, privateKey), nil
 	})
 
 	// Services (RBAC & Punishment)

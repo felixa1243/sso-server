@@ -85,12 +85,6 @@ func (s *punishmentServiceImpl) PunishUser(ctx context.Context, adminID string, 
 		// Convert duration to time.Duration
 		s.redis.Set(ctx, "user:"+req.UserID+":banned", "true", ttl)
 
-		// Update User IsBanned flag in DB as well for persistence
-		user, err := s.userRepo.FindByID(req.UserID)
-		if err == nil {
-			user.IsBanned = true
-			s.userRepo.Update(user)
-		}
 	}
 
 	s.eventService.Publish(ctx, "user.punished", map[string]interface{}{
@@ -119,15 +113,6 @@ func (s *punishmentServiceImpl) GetPunishments(ctx context.Context, userID strin
 }
 
 func (s *punishmentServiceImpl) UnbanUser(ctx context.Context, userID string) error {
-	user, err := s.userRepo.FindByID(userID)
-	if err != nil {
-		return err
-	}
-	user.IsBanned = false
-	if err := s.userRepo.Update(user); err != nil {
-		return err
-	}
-
 	s.redis.Del(ctx, "user:"+userID+":banned")
 
 	// Revoke active bans
