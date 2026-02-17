@@ -51,5 +51,10 @@ func New(privKey *rsa.PrivateKey, pubKey *rsa.PublicKey) *FiberServer {
 	}))
 	server.App.Static("/uploads", "./uploads")
 	server.Static("/assets", "./resources/assets")
+	server.Static("/", "./resources/public")
+	// SPA Fallback
+	server.Get("/*", func(c *fiber.Ctx) error {
+		return c.SendFile("./resources/public/index.html")
+	})
 	return server
 }

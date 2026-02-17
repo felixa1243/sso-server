@@ -31,13 +31,14 @@ type UserService interface {
 }
 
 type userServiceImpl struct {
-	userRepository    repositories.UserRepository
-	profileRepository repositories.ProfileRepository
-	roleRepository    repositories.RoleRepository
-	domainRepository  repositories.DomainRepository
-	eventService      EventService
-	redis             *redis.Client
-	privateKey        *rsa.PrivateKey
+	userRepository       repositories.UserRepository
+	profileRepository    repositories.ProfileRepository
+	roleRepository       repositories.RoleRepository
+	domainRepository     repositories.DomainRepository
+	punishmentRepository repositories.PunishmentRepository
+	eventService         EventService
+	redis                *redis.Client
+	privateKey           *rsa.PrivateKey
 }
 
 func NewUserServices(
@@ -45,18 +46,20 @@ func NewUserServices(
 	profileRepository repositories.ProfileRepository,
 	roleRepository repositories.RoleRepository,
 	domainRepository repositories.DomainRepository,
+	punishmentRepository repositories.PunishmentRepository,
 	eventService EventService,
 	redis *redis.Client,
 	privateKey *rsa.PrivateKey,
 ) UserService {
 	return &userServiceImpl{
-		userRepository:    userRepository,
-		profileRepository: profileRepository,
-		roleRepository:    roleRepository,
-		domainRepository:  domainRepository,
-		eventService:      eventService,
-		redis:             redis,
-		privateKey:        privateKey,
+		userRepository:       userRepository,
+		profileRepository:    profileRepository,
+		roleRepository:       roleRepository,
+		domainRepository:     domainRepository,
+		punishmentRepository: punishmentRepository,
+		eventService:         eventService,
+		redis:                redis,
+		privateKey:           privateKey,
 	}
 }
 
@@ -100,8 +103,9 @@ func (u *userServiceImpl) Authenticate(ctx context.Context, email, password stri
 		return nil, errors.New("incorrect password")
 	}
 
-	if user.IsBanned {
-		return nil, errors.New("user is banned")
+	punishment, _ := u.punishmentRepository.FindActiveByUserID(user.ID.String(), "BAN")
+	if punishment != nil {
+		return nil, errors.New("user is banned: " + punishment.Reason)
 	}
 
 	return user, nil
@@ -204,12 +208,18 @@ func (u *userServiceImpl) UpdateUserRoles(ctx context.Context, userID string, ro
 }
 
 func (u *userServiceImpl) BanUser(ctx context.Context, userID string) error {
-	user, err := u.userRepository.FindByID(userID)
-	if err != nil {
-		return err
+	// Simple ban implementation that creates an indefinite punishment
+	punishment := models.Punishment{
+		ID:        uuid.New(),
+		UserID:    uuid.MustParse(userID),
+		Type:      "BAN",
+		Reason:    "Banned by admin",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(24 * 365 * 100 * time.Hour), // Indefinite
+		AdminID:   uuid.Nil, // Unknown admin
 	}
-	user.IsBanned = true
-	if err := u.userRepository.Update(user); err != nil {
+
+	if err := u.punishmentRepository.Create(&punishment); err != nil {
 		return err
 	}
 
@@ -218,13 +228,10 @@ func (u *userServiceImpl) BanUser(ctx context.Context, userID string) error {
 }
 
 func (u *userServiceImpl) UnbanUser(ctx context.Context, userID string) error {
-	user, err := u.userRepository.FindByID(userID)
-	if err != nil {
-		return err
-	}
-	user.IsBanned = false
-	if err := u.userRepository.Update(user); err != nil {
-		return err
+	// Revoke active bans
+	punishment, _ := u.punishmentRepository.FindActiveByUserID(userID, "BAN")
+	if punishment != nil {
+		u.punishmentRepository.Revoke(punishment.ID.String())
 	}
 
 	// Remove banned status from Redis
