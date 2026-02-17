@@ -42,7 +42,7 @@ func (ac *AuthController) createUser(c *fiber.Ctx, roleName string) (*models.Use
 }
 
 func (ac *AuthController) ReaderRegister(c *fiber.Ctx) error {
-	_, valErrors, err := ac.createUser(c, "Blog:Reader")
+	user, valErrors, err := ac.createUser(c, "Blog:Reader")
 	if valErrors != nil {
 		return c.Status(400).JSON(fiber.Map{
 			"message": "validation error",
@@ -52,7 +52,10 @@ func (ac *AuthController) ReaderRegister(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"message": err.Error()})
 	}
-	return c.Redirect("/login")
+	if user == nil {
+		return c.Status(500).JSON(fiber.Map{"message": "User creation failed unexpectedly"})
+	}
+	return c.Status(201).JSON(ac.mapUser(*user))
 }
 
 func (ac *AuthController) EditorRegister(c *fiber.Ctx) error {
@@ -188,16 +191,6 @@ func (ac *AuthController) ExchangeCode(c *fiber.Ctx) error {
 	})
 }
 
-func (ac *AuthController) ShowRegister(c *fiber.Ctx) error {
-	return c.Render("register", fiber.Map{})
-}
-
-func (ac *AuthController) ShowLogin(c *fiber.Ctx) error {
-	return c.Render("login", fiber.Map{
-		"RedirectURL": c.Query("redirect_url"),
-		"AppUrl":      os.Getenv("APP_URL"),
-	})
-}
 
 func (ac *AuthController) Logout(c *fiber.Ctx) error {
 	token := c.Cookies("access_token")

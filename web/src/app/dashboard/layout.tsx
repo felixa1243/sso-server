@@ -50,6 +50,11 @@ export default function DashboardLayout({
                                 My Domains
                             </Link>
                         </li>
+                        <li>
+                            <Link href="/dashboard/apps" className="block px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-md transition-colors">
+                                My Apps
+                            </Link>
+                        </li>
                     </ul>
                 </nav>
                 <div className="p-4 border-t">

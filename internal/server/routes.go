@@ -27,7 +27,6 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	s.App.Post("/register/reader", authControllers.ReaderRegister)
 	s.App.Post("/register/editor", authControllers.EditorRegister)
 	s.App.Post("/login", authControllers.Login)
-	s.App.Get("/login", authControllers.ShowLogin)
 	s.App.Post("/logout", authControllers.Logout)
 	s.App.Post("/exchange", authControllers.ExchangeCode)
 
@@ -68,10 +67,6 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	admin.Get("/permissions", rbacController.ListPermissions)
 	admin.Post("/permissions", rbacController.CreatePermission)
 
-	// SPA Fallback - Must be last
-	s.App.Get("/*", func(c *fiber.Ctx) error {
-		return c.SendFile("./resources/public/index.html")
-	})
 }
 
 func (s *FiberServer) HelloWorldHandler(c *fiber.Ctx) error {
