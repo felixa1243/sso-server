@@ -8,14 +8,15 @@ import (
 )
 
 type ClientApp struct {
-	ID            uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Name          string         `gorm:"type:varchar(100);not null"`
-	Secret        string         `gorm:"not null"` // Hashed?
-	RedirectURIs  string         `gorm:"type:text;not null"` // Comma separated or JSON
-	AllowedScopes string         `gorm:"type:text"`          // Space separated permissions/roles
-	UserID        uuid.UUID      `gorm:"type:uuid;not null;index"` // Owner
-	User          User           `gorm:"foreignKey:UserID"`
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     gorm.DeletedAt `gorm:"index"`
+	ID           uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Name         string         `gorm:"not null"`
+	ClientID     string         `gorm:"uniqueIndex;not null"`
+	ClientSecret string         `gorm:"not null" json:"-"`
+	RedirectURIs string         `gorm:"not null"` // Comma-separated
+	Scopes       string         `gorm:"not null"` // Space-separated allowed scopes
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    gorm.DeletedAt `gorm:"index"`
+	UserID       uuid.UUID      `gorm:"type:uuid;not null"` // Owner
+	User         User           `gorm:"foreignKey:UserID"`
 }

@@ -94,6 +94,7 @@ func SetupDI(db *gorm.DB, rdb *redis.Client, key *rsa.PrivateKey, publicKey *rsa
 	do.Provide(injector, func(i do.Injector) (*controllers.AuthController, error) {
 		return controllers.NewAuthController(
 			do.MustInvoke[services.UserService](i),
+			do.MustInvoke[services.ClientAppService](i),
 		), nil
 	})
 	do.Provide(injector, func(i do.Injector) (*controllers.JWKController, error) {

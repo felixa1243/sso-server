@@ -1,17 +1,18 @@
 package repositories
 
 import (
+	"context"
 	"sso-server/internal/models"
 
 	"gorm.io/gorm"
 )
 
 type ClientAppRepository interface {
-	Create(client *models.ClientApp) error
-	FindByID(id string) (*models.ClientApp, error)
-	FindAllByUserID(userID string) ([]models.ClientApp, error)
-	Update(client *models.ClientApp) error
-	Delete(id string) error
+	Create(ctx context.Context, clientApp *models.ClientApp) error
+	FindByID(ctx context.Context, id string) (*models.ClientApp, error)
+	FindByClientID(ctx context.Context, clientID string) (*models.ClientApp, error)
+	FindByUserID(ctx context.Context, userID string) ([]models.ClientApp, error)
+	Delete(ctx context.Context, id string) error
 }
 
 type clientAppRepositoryImpl struct {
@@ -22,30 +23,34 @@ func NewClientAppRepository(db *gorm.DB) ClientAppRepository {
 	return &clientAppRepositoryImpl{db: db}
 }
 
-func (r *clientAppRepositoryImpl) Create(client *models.ClientApp) error {
-	return r.db.Create(client).Error
+func (r *clientAppRepositoryImpl) Create(ctx context.Context, clientApp *models.ClientApp) error {
+	return r.db.WithContext(ctx).Create(clientApp).Error
 }
 
-func (r *clientAppRepositoryImpl) FindByID(id string) (*models.ClientApp, error) {
-	var client models.ClientApp
-	if err := r.db.Where("id = ?", id).First(&client).Error; err != nil {
+func (r *clientAppRepositoryImpl) FindByID(ctx context.Context, id string) (*models.ClientApp, error) {
+	var clientApp models.ClientApp
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&clientApp).Error; err != nil {
 		return nil, err
 	}
-	return &client, nil
+	return &clientApp, nil
 }
 
-func (r *clientAppRepositoryImpl) FindAllByUserID(userID string) ([]models.ClientApp, error) {
-	var clients []models.ClientApp
-	if err := r.db.Where("user_id = ?", userID).Find(&clients).Error; err != nil {
+func (r *clientAppRepositoryImpl) FindByClientID(ctx context.Context, clientID string) (*models.ClientApp, error) {
+	var clientApp models.ClientApp
+	if err := r.db.WithContext(ctx).Where("client_id = ?", clientID).First(&clientApp).Error; err != nil {
 		return nil, err
 	}
-	return clients, nil
+	return &clientApp, nil
 }
 
-func (r *clientAppRepositoryImpl) Update(client *models.ClientApp) error {
-	return r.db.Save(client).Error
+func (r *clientAppRepositoryImpl) FindByUserID(ctx context.Context, userID string) ([]models.ClientApp, error) {
+	var apps []models.ClientApp
+	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&apps).Error; err != nil {
+		return nil, err
+	}
+	return apps, nil
 }
 
-func (r *clientAppRepositoryImpl) Delete(id string) error {
-	return r.db.Delete(&models.ClientApp{}, "id = ?", id).Error
+func (r *clientAppRepositoryImpl) Delete(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&models.ClientApp{}).Error
 }

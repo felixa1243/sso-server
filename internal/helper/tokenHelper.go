@@ -12,9 +12,15 @@ import (
 	"github.com/google/uuid"
 )
 
-func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKey, scope string) (string, error) {
+func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKey, domain *models.Domain, scope string) (string, error) {
 	var rolesString strings.Builder
 	var permissionsString strings.Builder
+	requestedScopes := make(map[string]bool)
+	if scope != "" {
+		for _, s := range strings.Split(scope, " ") {
+			requestedScopes[s] = true
+		}
+	}
 
 	// In new logic, scope param dictates what permissions are granted/requested.
 	// But usually we just grant what the user has.
@@ -30,6 +36,13 @@ func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKe
 		rolesString.WriteString(role.Name)
 
 		for _, perm := range role.Permissions {
+			// If scopes are requested, only include permissions that are in the requested scopes
+			if len(requestedScopes) > 0 {
+				if !requestedScopes[perm.Slug] {
+					continue
+				}
+			}
+
 			if permissionsString.Len() > 0 {
 				permissionsString.WriteString(" ")
 			}

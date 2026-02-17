@@ -49,9 +49,8 @@ func TestGenerateToken(t *testing.T) {
 		},
 	}
 
-	// Test with scope
-	scope := "blog:read"
-	tokenString, err := GenerateToken(user, "Test User", privateKey, scope)
+	// Test with domain scoping
+	tokenString, err := GenerateToken(user, "Test User", privateKey, domain, "")
 	assert.NoError(t, err)
 
 	token, _ := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -71,8 +70,8 @@ func TestGenerateToken(t *testing.T) {
 	// Current impl: scope: permissionsString.String()
 	// It ignored the passed scope param in the logic except for unused var check?
 
-	// Test without scope (Global login)
-	tokenStringGlobal, err := GenerateToken(user, "Test User", privateKey, "")
+	// Test without domain (Global login)
+	tokenStringGlobal, err := GenerateToken(user, "Test User", privateKey, nil, "")
 	assert.NoError(t, err)
 
 	tokenGlobal, _ := jwt.Parse(tokenStringGlobal, func(token *jwt.Token) (interface{}, error) {

@@ -13,12 +13,14 @@ import (
 )
 
 type AuthController struct {
-	UserService services.UserService
+	UserService      services.UserService
+	ClientAppService services.ClientAppService
 }
 
-func NewAuthController(userService services.UserService) *AuthController {
+func NewAuthController(userService services.UserService, clientAppService services.ClientAppService) *AuthController {
 	return &AuthController{
-		UserService: userService,
+		UserService:      userService,
+		ClientAppService: clientAppService,
 	}
 }
 
@@ -96,16 +98,38 @@ func (ac *AuthController) Login(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"message": err.Error()})
 	}
 
+	var clientApp *models.ClientApp
+	if req.ClientID != "" {
+		app, err := ac.ClientAppService.GetClientByClientID(c.Context(), req.ClientID)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{"message": "Invalid client_id"})
+		}
+		clientApp = app
+	}
+
 	redirectURL := c.Query("redirect_url")
 	if redirectURL != "" {
-		code, err := ac.UserService.GenerateAuthCode(c.Context(), user.ID.String())
+		if clientApp != nil {
+			allowed := false
+			for _, uri := range strings.Split(clientApp.RedirectURIs, ",") {
+				if strings.TrimSpace(uri) == redirectURL {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				return c.Status(400).JSON(fiber.Map{"message": "Invalid redirect_url"})
+			}
+		}
+
+		code, err := ac.UserService.GenerateAuthCode(c.Context(), user.ID.String(), req.Scope)
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"message": "failed to generate auth code"})
 		}
 		return c.Redirect(redirectURL + "?code=" + code)
 	}
 
-	token, err := ac.UserService.GetToken(c.Context(), user.ID.String(), req.Scope)
+	token, err := ac.UserService.GetToken(c.Context(), user.ID.String(), "", req.Scope)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"message": err.Error()})
 	}
@@ -131,12 +155,12 @@ func (ac *AuthController) ExchangeCode(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
 	}
 
-	user, err := ac.UserService.ExchangeCode(c.Context(), req.Code)
+	user, scope, err := ac.UserService.ExchangeCode(c.Context(), req.Code)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	token, err := ac.UserService.GetToken(c.Context(), user.ID.String(), "")
+	token, err := ac.UserService.GetToken(c.Context(), user.ID.String(), "", scope)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
