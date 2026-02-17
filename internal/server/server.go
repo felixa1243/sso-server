@@ -7,7 +7,6 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/template/html/v2"
 
 	"sso-server/internal/database"
 )
@@ -20,12 +19,10 @@ type FiberServer struct {
 }
 
 func New(privKey *rsa.PrivateKey, pubKey *rsa.PublicKey) *FiberServer {
-	engine := html.New("./resources/views", ".html")
 	server := &FiberServer{
 		App: fiber.New(fiber.Config{
 			ServerHeader: "sso-server",
 			AppName:      "sso-server",
-			Views:        engine,
 			ErrorHandler: func(c *fiber.Ctx, err error) error {
 				code := fiber.StatusInternalServerError
 				message := "An Internal server error occured"
@@ -50,7 +47,5 @@ func New(privKey *rsa.PrivateKey, pubKey *rsa.PublicKey) *FiberServer {
 		Format: "[${ip}]:${port} ${status} - ${method} ${path}\n",
 	}))
 	server.App.Static("/uploads", "./uploads")
-	server.Static("/assets", "./resources/assets")
-	server.Static("/", "./resources/public")
 	return server
 }
