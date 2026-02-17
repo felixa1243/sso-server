@@ -25,7 +25,8 @@ func SetupDI(db *gorm.DB, rdb *redis.Client, key *rsa.PrivateKey, publicKey *rsa
 	// Middleware
 	do.Provide(injector, func(i do.Injector) (fiber.Handler, error) {
 		pk := do.MustInvoke[*rsa.PublicKey](i)
-		return middleware.AuthMiddleware(pk), nil
+		rdb := do.MustInvoke[*redis.Client](i)
+		return middleware.AuthMiddleware(pk, rdb), nil
 	})
 
 	// Repositories

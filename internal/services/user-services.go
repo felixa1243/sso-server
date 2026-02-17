@@ -26,6 +26,8 @@ type UserService interface {
 	ListUsers(ctx context.Context) ([]models.User, error)
 	DeleteUser(ctx context.Context, userID string) error
 	UpdateUserRoles(ctx context.Context, userID string, roleIDs []string) error
+	BanUser(ctx context.Context, userID string) error
+	UnbanUser(ctx context.Context, userID string) error
 }
 
 type userServiceImpl struct {
@@ -93,6 +95,10 @@ func (u *userServiceImpl) Authenticate(ctx context.Context, email, password stri
 
 	if !helper.ComparePassword(user.PasswordHash, password) {
 		return nil, errors.New("incorrect password")
+	}
+
+	if user.IsBanned {
+		return nil, errors.New("user is banned")
 	}
 
 	return user, nil
@@ -183,6 +189,34 @@ func (u *userServiceImpl) UpdateUserRoles(ctx context.Context, userID string, ro
 	}
 
 	return u.userRepository.UpdateRoles(user, roles)
+}
+
+func (u *userServiceImpl) BanUser(ctx context.Context, userID string) error {
+	user, err := u.userRepository.FindByID(userID)
+	if err != nil {
+		return err
+	}
+	user.IsBanned = true
+	if err := u.userRepository.Update(user); err != nil {
+		return err
+	}
+
+	// Set banned status in Redis for immediate effect in middleware
+	return u.redis.Set(ctx, "user:"+userID+":banned", "true", 0).Err()
+}
+
+func (u *userServiceImpl) UnbanUser(ctx context.Context, userID string) error {
+	user, err := u.userRepository.FindByID(userID)
+	if err != nil {
+		return err
+	}
+	user.IsBanned = false
+	if err := u.userRepository.Update(user); err != nil {
+		return err
+	}
+
+	// Remove banned status from Redis
+	return u.redis.Del(ctx, "user:"+userID+":banned").Err()
 }
 
 func (u *userServiceImpl) GetUser(ctx context.Context, userID string) (*dto.JoinUser, error) {

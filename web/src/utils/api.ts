@@ -19,14 +19,14 @@ export async function get(endpoint: string, token: string) {
     return res.json();
 }
 
-export async function put(endpoint: string, token: string, body: any) {
+export async function put(endpoint: string, token: string, body?: any) {
     const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(body),
+        body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) throw new Error(await res.text());
     return res;

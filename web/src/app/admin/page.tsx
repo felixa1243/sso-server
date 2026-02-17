@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { get, del } from '../../utils/api';
+import { get, del, put } from '../../utils/api';
 
 interface Role {
     Name: string;
@@ -12,6 +12,7 @@ interface User {
     ID: string;
     Email: string;
     Role: Role[];
+    IsBanned: boolean;
 }
 
 export default function AdminPage() {
@@ -50,6 +51,17 @@ export default function AdminPage() {
         }
     };
 
+    const handleBan = async (id: string, isBanned: boolean) => {
+        const token = localStorage.getItem('token') || '';
+        const endpoint = isBanned ? `/admin/users/${id}/unban` : `/admin/users/${id}/ban`;
+        try {
+            await put(endpoint, token);
+            setUsers(users.map(u => u.ID === id ? { ...u, IsBanned: !isBanned } : u));
+        } catch (err: any) {
+            alert(err.message);
+        }
+    };
+
     if (loading) return <div className="p-4 text-center">Loading...</div>;
     if (error) return <div className="p-4 text-red-500 text-center">Error: {error}</div>;
 
@@ -79,6 +91,9 @@ export default function AdminPage() {
                                     Roles
                                 </th>
                                 <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                    Status
+                                </th>
+                                <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                     Actions
                                 </th>
                             </tr>
@@ -101,6 +116,19 @@ export default function AdminPage() {
                                         </span>
                                     </td>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                                        {user.IsBanned ? (
+                                            <span className="text-red-500 font-bold">Banned</span>
+                                        ) : (
+                                            <span className="text-green-500">Active</span>
+                                        )}
+                                    </td>
+                                    <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                                        <button
+                                            onClick={() => handleBan(user.ID, user.IsBanned)}
+                                            className={`mr-2 ${user.IsBanned ? 'text-green-600 hover:text-green-900' : 'text-orange-600 hover:text-orange-900'}`}
+                                        >
+                                            {user.IsBanned ? 'Unban' : 'Ban'}
+                                        </button>
                                         <button
                                             onClick={() => handleDelete(user.ID)}
                                             className="text-red-600 hover:text-red-900"

@@ -47,3 +47,19 @@ func (c *UserManagementController) UpdateUserRoles(ctx *fiber.Ctx) error {
 
 	return ctx.SendStatus(fiber.StatusOK)
 }
+
+func (c *UserManagementController) BanUser(ctx *fiber.Ctx) error {
+	id := ctx.Params("id")
+	if err := c.UserService.BanUser(ctx.Context(), id); err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return ctx.SendStatus(fiber.StatusOK)
+}
+
+func (c *UserManagementController) UnbanUser(ctx *fiber.Ctx) error {
+	id := ctx.Params("id")
+	if err := c.UserService.UnbanUser(ctx.Context(), id); err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return ctx.SendStatus(fiber.StatusOK)
+}

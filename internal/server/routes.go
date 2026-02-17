@@ -40,6 +40,8 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	admin.Get("/users", userManagementController.ListUsers)
 	admin.Delete("/users/:id", userManagementController.DeleteUser)
 	admin.Put("/users/:id/roles", userManagementController.UpdateUserRoles)
+	admin.Put("/users/:id/ban", userManagementController.BanUser)
+	admin.Put("/users/:id/unban", userManagementController.UnbanUser)
 }
 
 func (s *FiberServer) HelloWorldHandler(c *fiber.Ctx) error {
