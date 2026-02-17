@@ -33,9 +33,13 @@ func (s *FiberServer) RegisterFiberRoutes() {
 
 	// Protected Routes
 	clientAppController := do.MustInvoke[*controllers.ClientAppController](injector)
+	domainController := do.MustInvoke[*controllers.DomainController](injector)
+
 	s.App.Post("/change-password", authMiddleware, authControllers.ChangePassword)
 	s.App.Post("/clients", authMiddleware, clientAppController.Register)
 	s.App.Get("/clients", authMiddleware, clientAppController.List)
+	s.App.Post("/domains", authMiddleware, domainController.Register)
+	s.App.Get("/domains", authMiddleware, domainController.List)
 
 	// Admin Routes
 	userManagementController := do.MustInvoke[*controllers.UserManagementController](injector)

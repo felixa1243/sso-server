@@ -269,7 +269,7 @@ func (u *userServiceImpl) GetToken(ctx context.Context, userID string, domainNam
 	// For now, let's update GenerateToken to accept scope string instead of Domain.
 
 	fullname := joinUser.Fullname
-	token, err := helper.GenerateToken(user, fullname, u.privateKey, domain, scope)
+	token, err := helper.GenerateToken(user, fullname, u.privateKey, nil, scope)
 	if err != nil {
 		return "", errors.New("security signing failed")
 	}

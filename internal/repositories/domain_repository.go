@@ -9,6 +9,7 @@ import (
 type DomainRepository interface {
 	FindByName(name string) (*models.Domain, error)
 	FindAll() ([]models.Domain, error)
+	FindAllByUserID(userID string) ([]models.Domain, error)
 	Create(domain *models.Domain) error
 	Delete(id string) error
 	Update(domain *models.Domain) error
@@ -33,6 +34,14 @@ func (r *domainRepositoryImpl) FindByName(name string) (*models.Domain, error) {
 func (r *domainRepositoryImpl) FindAll() ([]models.Domain, error) {
 	var domains []models.Domain
 	if err := r.db.Find(&domains).Error; err != nil {
+		return nil, err
+	}
+	return domains, nil
+}
+
+func (r *domainRepositoryImpl) FindAllByUserID(userID string) ([]models.Domain, error) {
+	var domains []models.Domain
+	if err := r.db.Where("user_id = ?", userID).Find(&domains).Error; err != nil {
 		return nil, err
 	}
 	return domains, nil
