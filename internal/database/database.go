@@ -52,7 +52,7 @@ func New() Service {
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
-	db.AutoMigrate(&models.User{}, &models.Role{}, &models.Permission{}, &models.UserProfile{}, &models.Domain{}, &models.Punishment{}, &models.ClientApp{})
+	db.AutoMigrate(&models.User{}, &models.Role{}, &models.Permission{}, &models.UserProfile{}, &models.Domain{}, &models.Punishment{}, &models.ClientApp{}, &models.Scope{})
 	dbInstance = &service{
 		db: db,
 	}
@@ -130,6 +130,19 @@ type userCreds struct {
 }
 
 func (s *service) SeedPermissionsAndRoles() error {
+	scopes := []models.Scope{
+		{Name: "openid", Description: "OpenID Connect support", IsDefault: true},
+		{Name: "profile", Description: "Basic profile information", IsDefault: true},
+		{Name: "email", Description: "Email address", IsDefault: true},
+		{Name: "offline_access", Description: "Refresh tokens", IsDefault: false},
+	}
+
+	for _, scope := range scopes {
+		if err := s.db.Where(models.Scope{Name: scope.Name}).FirstOrCreate(&scope).Error; err != nil {
+			return err
+		}
+	}
+
 	perms := []models.Permission{
 		{Name: "View Blog", Slug: "blog:read"},
 		{Name: "Write Blog", Slug: "blog:write"},

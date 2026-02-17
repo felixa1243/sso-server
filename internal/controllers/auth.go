@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"os"
 	"sso-server/internal/dto"
 	"sso-server/internal/helper"
 	"sso-server/internal/models"

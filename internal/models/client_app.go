@@ -14,6 +14,7 @@ type ClientApp struct {
 	ClientSecret string         `gorm:"not null" json:"-"`
 	RedirectURIs string         `gorm:"not null"` // Comma-separated
 	Scopes       string         `gorm:"not null"` // Space-separated allowed scopes
+	ScopeEntities []*Scope      `gorm:"many2many:client_app_scopes;"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    gorm.DeletedAt `gorm:"index"`
