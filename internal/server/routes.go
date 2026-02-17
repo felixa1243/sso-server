@@ -33,12 +33,14 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	// Protected Routes
 	clientAppController := do.MustInvoke[*controllers.ClientAppController](injector)
 	domainController := do.MustInvoke[*controllers.DomainController](injector)
+	scopeController := do.MustInvoke[*controllers.ScopeController](injector)
 
 	s.App.Post("/change-password", authMiddleware, authControllers.ChangePassword)
 	s.App.Post("/clients", authMiddleware, clientAppController.Register)
 	s.App.Get("/clients", authMiddleware, clientAppController.List)
 	s.App.Post("/domains", authMiddleware, domainController.Register)
 	s.App.Get("/domains", authMiddleware, domainController.List)
+	s.App.Get("/scopes", authMiddleware, scopeController.ListScopes)
 
 	// Admin Routes
 	userManagementController := do.MustInvoke[*controllers.UserManagementController](injector)
@@ -66,6 +68,11 @@ func (s *FiberServer) RegisterFiberRoutes() {
 
 	admin.Get("/permissions", rbacController.ListPermissions)
 	admin.Post("/permissions", rbacController.CreatePermission)
+
+	// Scopes
+	admin.Post("/scopes", scopeController.CreateScope)
+	admin.Put("/scopes/:id", scopeController.UpdateScope)
+	admin.Delete("/scopes/:id", scopeController.DeleteScope)
 
 }
 

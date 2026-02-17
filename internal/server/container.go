@@ -51,6 +51,9 @@ func SetupDI(db *gorm.DB, rdb *redis.Client, key *rsa.PrivateKey, publicKey *rsa
 	do.Provide(injector, func(i do.Injector) (repositories.ClientAppRepository, error) {
 		return repositories.NewClientAppRepository(do.MustInvoke[*gorm.DB](i)), nil
 	})
+	do.Provide(injector, func(i do.Injector) (repositories.ScopeRepository, error) {
+		return repositories.NewScopeRepository(do.MustInvoke[*gorm.DB](i)), nil
+	})
 
 	// Services
 	do.Provide(injector, func(i do.Injector) (services.EventService, error) {
@@ -95,6 +98,11 @@ func SetupDI(db *gorm.DB, rdb *redis.Client, key *rsa.PrivateKey, publicKey *rsa
 			do.MustInvoke[repositories.DomainRepository](i),
 		), nil
 	})
+	do.Provide(injector, func(i do.Injector) (services.ScopeService, error) {
+		return services.NewScopeService(
+			do.MustInvoke[repositories.ScopeRepository](i),
+		), nil
+	})
 
 	// Controllers
 	do.Provide(injector, func(i do.Injector) (*controllers.AuthController, error) {
@@ -132,6 +140,11 @@ func SetupDI(db *gorm.DB, rdb *redis.Client, key *rsa.PrivateKey, publicKey *rsa
 	do.Provide(injector, func(i do.Injector) (*controllers.DomainController, error) {
 		return controllers.NewDomainController(
 			do.MustInvoke[services.DomainService](i),
+		), nil
+	})
+	do.Provide(injector, func(i do.Injector) (*controllers.ScopeController, error) {
+		return controllers.NewScopeController(
+			do.MustInvoke[services.ScopeService](i),
 		), nil
 	})
 
