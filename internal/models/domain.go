@@ -14,4 +14,6 @@ type Domain struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
+	UserID    uuid.UUID      `gorm:"type:uuid;not null"`
+	User      User           `gorm:"foreignKey:UserID"`
 }
