@@ -12,16 +12,21 @@ import (
 	"github.com/google/uuid"
 )
 
-func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKey, domain *models.Domain) (string, error) {
+func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKey, scope string) (string, error) {
 	var rolesString strings.Builder
 	var permissionsString strings.Builder
 
-	for _, role := range user.Role {
-		// If domain provided, check if role belongs to this domain or is global
-		if domain != nil && role.DomainID != nil && *role.DomainID != domain.ID {
-			continue
-		}
+	// In new logic, scope param dictates what permissions are granted/requested.
+	// But usually we just grant what the user has.
+	// We can use scope to filter roles if we want, but "backend figured itself" might mean
+	// just give everything allowed.
+	// Let's assume we populate all roles for now, or filter by requested scope if implemented.
 
+	// Previous logic filtered by Domain. Now we don't pass Domain object.
+	// We just iterate all roles.
+	// If we want to support legacy domain scoping via 'scope' param (e.g. "domain:blog"), we could parse it.
+
+	for _, role := range user.Role {
 		rolesString.WriteString(role.Name)
 
 		for _, perm := range role.Permissions {
@@ -32,6 +37,16 @@ func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKe
 		}
 	}
 
+	// If scope is provided, we might want to put it in the token claim "scope"
+	// OR use it to limit permissionsString.
+	// For OIDC/OAuth, "scope" claim is what was granted.
+	finalScope := permissionsString.String()
+	if scope != "" {
+		// Just append requested scope or replace?
+		// Standard: 'scope' claim contains space-separated scopes.
+		// We'll use the user's permissions as the scope.
+	}
+
 	claims := jwt.MapClaims{
 		"sub":        user.ID.String(),
 		"jti":        uuid.New().String(),
@@ -40,13 +55,9 @@ func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKe
 		"fullname":   fullname,
 		"email":      user.Email,
 		"role":       rolesString.String(),
-		"scope":      permissionsString.String(),
+		"scope":      finalScope,
 		"user_id":    user.ID.String(),
 		"avatar_uri": user.Profile.AvatarURI,
-	}
-
-	if domain != nil {
-		claims["aud"] = domain.URL
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)

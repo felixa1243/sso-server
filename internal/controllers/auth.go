@@ -105,7 +105,7 @@ func (ac *AuthController) Login(c *fiber.Ctx) error {
 		return c.Redirect(redirectURL + "?code=" + code)
 	}
 
-	token, err := ac.UserService.GetToken(c.Context(), user.ID.String(), req.Domain)
+	token, err := ac.UserService.GetToken(c.Context(), user.ID.String(), req.Scope)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"message": err.Error()})
 	}
