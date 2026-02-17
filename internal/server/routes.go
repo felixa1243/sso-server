@@ -60,6 +60,12 @@ func (s *FiberServer) RegisterFiberRoutes() {
 
 	admin.Get("/permissions", rbacController.ListPermissions)
 	admin.Post("/permissions", rbacController.CreatePermission)
+
+	// Client Apps
+	clientAppController := do.MustInvoke[*controllers.ClientAppController](injector)
+	admin.Get("/clients", clientAppController.ListClients)
+	admin.Post("/clients", clientAppController.CreateClient)
+	admin.Delete("/clients/:id", clientAppController.DeleteClient)
 }
 
 func (s *FiberServer) HelloWorldHandler(c *fiber.Ctx) error {
