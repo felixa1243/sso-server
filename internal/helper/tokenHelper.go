@@ -12,11 +12,26 @@ import (
 	"github.com/google/uuid"
 )
 
-func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKey) (string, error) {
+func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKey, domain *models.Domain) (string, error) {
 	var rolesString strings.Builder
+	var permissionsString strings.Builder
+
 	for _, role := range user.Role {
+		// If domain provided, check if role belongs to this domain or is global
+		if domain != nil && role.DomainID != nil && *role.DomainID != domain.ID {
+			continue
+		}
+
 		rolesString.WriteString(role.Name)
+
+		for _, perm := range role.Permissions {
+			if permissionsString.Len() > 0 {
+				permissionsString.WriteString(" ")
+			}
+			permissionsString.WriteString(perm.Slug)
+		}
 	}
+
 	claims := jwt.MapClaims{
 		"sub":        user.ID.String(),
 		"jti":        uuid.New().String(),
@@ -25,11 +40,17 @@ func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKe
 		"fullname":   fullname,
 		"email":      user.Email,
 		"role":       rolesString.String(),
+		"scope":      permissionsString.String(),
 		"user_id":    user.ID.String(),
 		"avatar_uri": user.Profile.AvatarURI,
 	}
 
+	if domain != nil {
+		claims["aud"] = domain.URL
+	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = "sso-key-1"
 	return token.SignedString(privateKey)
 }
 

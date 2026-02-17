@@ -19,16 +19,23 @@ type UserService interface {
 	Authenticate(ctx context.Context, email, password string) (*models.User, error)
 	ExchangeCode(ctx context.Context, code string) (*models.User, error)
 	GenerateAuthCode(ctx context.Context, userID string) (string, error)
-	GetToken(ctx context.Context, userID string) (string, error)
+	GetToken(ctx context.Context, userID string, domainName string) (string, error)
 	GetUser(ctx context.Context, userID string) (*dto.JoinUser, error)
 	Logout(ctx context.Context, token string) error
 	ChangePassword(ctx context.Context, userID string, req dto.ChangePasswordRequest) error
+	ListUsers(ctx context.Context) ([]models.User, error)
+	DeleteUser(ctx context.Context, userID string) error
+	UpdateUserRoles(ctx context.Context, userID string, roleIDs []string) error
+	BanUser(ctx context.Context, userID string) error
+	UnbanUser(ctx context.Context, userID string) error
 }
 
 type userServiceImpl struct {
 	userRepository    repositories.UserRepository
 	profileRepository repositories.ProfileRepository
 	roleRepository    repositories.RoleRepository
+	domainRepository  repositories.DomainRepository
+	eventService      EventService
 	redis             *redis.Client
 	privateKey        *rsa.PrivateKey
 }
@@ -37,6 +44,8 @@ func NewUserServices(
 	userRepository repositories.UserRepository,
 	profileRepository repositories.ProfileRepository,
 	roleRepository repositories.RoleRepository,
+	domainRepository repositories.DomainRepository,
+	eventService EventService,
 	redis *redis.Client,
 	privateKey *rsa.PrivateKey,
 ) UserService {
@@ -44,6 +53,8 @@ func NewUserServices(
 		userRepository:    userRepository,
 		profileRepository: profileRepository,
 		roleRepository:    roleRepository,
+		domainRepository:  domainRepository,
+		eventService:      eventService,
 		redis:             redis,
 		privateKey:        privateKey,
 	}
@@ -87,6 +98,10 @@ func (u *userServiceImpl) Authenticate(ctx context.Context, email, password stri
 
 	if !helper.ComparePassword(user.PasswordHash, password) {
 		return nil, errors.New("incorrect password")
+	}
+
+	if user.IsBanned {
+		return nil, errors.New("user is banned")
 	}
 
 	return user, nil
@@ -157,6 +172,65 @@ func (u *userServiceImpl) ChangePassword(ctx context.Context, userID string, req
 	return u.userRepository.Update(user)
 }
 
+func (u *userServiceImpl) ListUsers(ctx context.Context) ([]models.User, error) {
+	return u.userRepository.FindAll()
+}
+
+func (u *userServiceImpl) DeleteUser(ctx context.Context, userID string) error {
+	return u.userRepository.Delete(userID)
+}
+
+func (u *userServiceImpl) UpdateUserRoles(ctx context.Context, userID string, roleIDs []string) error {
+	user, err := u.userRepository.FindByID(userID)
+	if err != nil {
+		return err
+	}
+
+	roles, err := u.roleRepository.FindByIds(roleIDs)
+	if err != nil {
+		return err
+	}
+
+	if err := u.userRepository.UpdateRoles(user, roles); err != nil {
+		return err
+	}
+
+	u.eventService.Publish(ctx, "user.promoted", map[string]interface{}{
+		"user_id": userID,
+		"roles": roles,
+	})
+
+	return nil
+}
+
+func (u *userServiceImpl) BanUser(ctx context.Context, userID string) error {
+	user, err := u.userRepository.FindByID(userID)
+	if err != nil {
+		return err
+	}
+	user.IsBanned = true
+	if err := u.userRepository.Update(user); err != nil {
+		return err
+	}
+
+	// Set banned status in Redis for immediate effect in middleware
+	return u.redis.Set(ctx, "user:"+userID+":banned", "true", 0).Err()
+}
+
+func (u *userServiceImpl) UnbanUser(ctx context.Context, userID string) error {
+	user, err := u.userRepository.FindByID(userID)
+	if err != nil {
+		return err
+	}
+	user.IsBanned = false
+	if err := u.userRepository.Update(user); err != nil {
+		return err
+	}
+
+	// Remove banned status from Redis
+	return u.redis.Del(ctx, "user:"+userID+":banned").Err()
+}
+
 func (u *userServiceImpl) GetUser(ctx context.Context, userID string) (*dto.JoinUser, error) {
 	joinUser, queryError := u.profileRepository.FindByUserID(userID)
 	if queryError != nil {
@@ -165,7 +239,7 @@ func (u *userServiceImpl) GetUser(ctx context.Context, userID string) (*dto.Join
 	return &joinUser, nil
 }
 
-func (u *userServiceImpl) GetToken(ctx context.Context, userID string) (string, error) {
+func (u *userServiceImpl) GetToken(ctx context.Context, userID string, domainName string) (string, error) {
 	joinUser, queryError := u.GetUser(ctx, userID)
 	if queryError != nil {
 		return "", queryError
@@ -174,8 +248,17 @@ func (u *userServiceImpl) GetToken(ctx context.Context, userID string) (string, 
 	if err != nil {
 		return "", errors.New("user account does not exist")
 	}
+
+	var domain *models.Domain
+	if domainName != "" {
+		d, err := u.domainRepository.FindByName(domainName)
+		if err == nil {
+			domain = d
+		}
+	}
+
 	fullname := joinUser.Fullname
-	token, err := helper.GenerateToken(user, fullname, u.privateKey)
+	token, err := helper.GenerateToken(user, fullname, u.privateKey, domain)
 	if err != nil {
 		return "", errors.New("security signing failed")
 	}

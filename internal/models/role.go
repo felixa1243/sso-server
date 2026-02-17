@@ -8,8 +8,10 @@ import (
 
 type Role struct {
 	ID          uuid.UUID    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Name        string       `gorm:"type:varchar(100);uniqueIndex;not null"`
+	Name        string       `gorm:"type:varchar(100);not null"`
 	Permissions []Permission `gorm:"many2many:role_permissions;"`
+	DomainID    *uuid.UUID   `gorm:"type:uuid;index"`
+	Domain      *Domain      `gorm:"foreignKey:DomainID"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
