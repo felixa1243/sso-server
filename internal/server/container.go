@@ -48,6 +48,9 @@ func SetupDI(db *gorm.DB, rdb *redis.Client, key *rsa.PrivateKey, publicKey *rsa
 	do.Provide(injector, func(i do.Injector) (repositories.PermissionRepository, error) {
 		return repositories.NewPermissionRepository(do.MustInvoke[*gorm.DB](i)), nil
 	})
+	do.Provide(injector, func(i do.Injector) (repositories.ClientAppRepository, error) {
+		return repositories.NewClientAppRepository(do.MustInvoke[*gorm.DB](i)), nil
+	})
 
 	// Services
 	do.Provide(injector, func(i do.Injector) (services.EventService, error) {
@@ -81,11 +84,17 @@ func SetupDI(db *gorm.DB, rdb *redis.Client, key *rsa.PrivateKey, publicKey *rsa
 			do.MustInvoke[services.EventService](i),
 		), nil
 	})
+	do.Provide(injector, func(i do.Injector) (services.ClientAppService, error) {
+		return services.NewClientAppService(
+			do.MustInvoke[repositories.ClientAppRepository](i),
+		), nil
+	})
 
 	// Controllers
 	do.Provide(injector, func(i do.Injector) (*controllers.AuthController, error) {
 		return controllers.NewAuthController(
 			do.MustInvoke[services.UserService](i),
+			do.MustInvoke[services.ClientAppService](i),
 		), nil
 	})
 	do.Provide(injector, func(i do.Injector) (*controllers.JWKController, error) {
@@ -106,6 +115,11 @@ func SetupDI(db *gorm.DB, rdb *redis.Client, key *rsa.PrivateKey, publicKey *rsa
 	do.Provide(injector, func(i do.Injector) (*controllers.RBACController, error) {
 		return controllers.NewRBACController(
 			do.MustInvoke[services.RBACService](i),
+		), nil
+	})
+	do.Provide(injector, func(i do.Injector) (*controllers.ClientAppController, error) {
+		return controllers.NewClientAppController(
+			do.MustInvoke[services.ClientAppService](i),
 		), nil
 	})
 

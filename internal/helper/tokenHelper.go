@@ -12,9 +12,15 @@ import (
 	"github.com/google/uuid"
 )
 
-func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKey, domain *models.Domain) (string, error) {
+func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKey, domain *models.Domain, scope string) (string, error) {
 	var rolesString strings.Builder
 	var permissionsString strings.Builder
+	requestedScopes := make(map[string]bool)
+	if scope != "" {
+		for _, s := range strings.Split(scope, " ") {
+			requestedScopes[s] = true
+		}
+	}
 
 	for _, role := range user.Role {
 		// If domain provided, check if role belongs to this domain or is global
@@ -25,6 +31,13 @@ func GenerateToken(user *models.User, fullname string, privateKey *rsa.PrivateKe
 		rolesString.WriteString(role.Name)
 
 		for _, perm := range role.Permissions {
+			// If scopes are requested, only include permissions that are in the requested scopes
+			if len(requestedScopes) > 0 {
+				if !requestedScopes[perm.Slug] {
+					continue
+				}
+			}
+
 			if permissionsString.Len() > 0 {
 				permissionsString.WriteString(" ")
 			}

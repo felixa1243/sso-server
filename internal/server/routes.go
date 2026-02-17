@@ -32,7 +32,10 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	s.App.Post("/exchange", authControllers.ExchangeCode)
 
 	// Protected Routes
+	clientAppController := do.MustInvoke[*controllers.ClientAppController](injector)
 	s.App.Post("/change-password", authMiddleware, authControllers.ChangePassword)
+	s.App.Post("/clients", authMiddleware, clientAppController.Register)
+	s.App.Get("/clients", authMiddleware, clientAppController.List)
 
 	// Admin Routes
 	userManagementController := do.MustInvoke[*controllers.UserManagementController](injector)
@@ -60,6 +63,11 @@ func (s *FiberServer) RegisterFiberRoutes() {
 
 	admin.Get("/permissions", rbacController.ListPermissions)
 	admin.Post("/permissions", rbacController.CreatePermission)
+
+	// SPA Fallback - Must be last
+	s.App.Get("/*", func(c *fiber.Ctx) error {
+		return c.SendFile("./resources/public/index.html")
+	})
 }
 
 func (s *FiberServer) HelloWorldHandler(c *fiber.Ctx) error {

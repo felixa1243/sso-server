@@ -8,6 +8,7 @@ import (
 	"sso-server/internal/helper"
 	"sso-server/internal/models"
 	"sso-server/internal/repositories"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -17,9 +18,9 @@ import (
 type UserService interface {
 	CreateUser(ctx context.Context, req dto.RegisterRequest, roleName string) (*models.User, error)
 	Authenticate(ctx context.Context, email, password string) (*models.User, error)
-	ExchangeCode(ctx context.Context, code string) (*models.User, error)
-	GenerateAuthCode(ctx context.Context, userID string) (string, error)
-	GetToken(ctx context.Context, userID string, domainName string) (string, error)
+	ExchangeCode(ctx context.Context, code string) (*models.User, string, error)
+	GenerateAuthCode(ctx context.Context, userID string, scope string) (string, error)
+	GetToken(ctx context.Context, userID string, domainName string, scope string) (string, error)
 	GetUser(ctx context.Context, userID string) (*dto.JoinUser, error)
 	Logout(ctx context.Context, token string) error
 	ChangePassword(ctx context.Context, userID string, req dto.ChangePasswordRequest) error
@@ -111,37 +112,35 @@ func (u *userServiceImpl) Authenticate(ctx context.Context, email, password stri
 	return user, nil
 }
 
-func (u *userServiceImpl) ExchangeCode(ctx context.Context, code string) (*models.User, error) {
-	userID, err := u.redis.Get(ctx, "auth_code:"+code).Result()
+func (u *userServiceImpl) ExchangeCode(ctx context.Context, code string) (*models.User, string, error) {
+	val, err := u.redis.Get(ctx, "auth_code:"+code).Result()
 	if err != nil {
-		return nil, errors.New("code expired or invalid")
+		return nil, "", errors.New("code expired or invalid")
+	}
+
+	parts := strings.SplitN(val, ":", 2)
+	userID := parts[0]
+	scope := ""
+	if len(parts) > 1 {
+		scope = parts[1]
 	}
 
 	user, err := u.userRepository.FindByID(userID)
 	if err != nil {
-		return nil, errors.New("user not found")
+		return nil, "", errors.New("user not found")
 	}
 
-	// Fetch roles to include them, similar to original controller logic which used Preload("Role")
-	// The repository FindByID doesn't preload roles explicitly in my reading of it?
-	// Let's check user-repository. FindByID: r.db.Where("id = ?", id).First(&user)
-	// It does NOT Preload roles.
-	// But `models.User` has `Role []Role`.
-	// I should probably ensure roles are loaded if needed.
-	// The original controller did: ac.DB.Preload("Role").Where("id = ?", userID).First(&user)
-	// So I need to update UserRepository.FindByID to Preload roles or add a method for it.
-	// Or I can just return the user and let the repository handle loading if configured (it's not by default).
-
-	// I'll update UserRepository.FindByID to Preload("Role") as it seems essential for this app (RBAC).
-	// But first, finish this method.
-
 	u.redis.Del(ctx, "auth_code:"+code)
-	return user, nil
+	return user, scope, nil
 }
 
-func (u *userServiceImpl) GenerateAuthCode(ctx context.Context, userID string) (string, error) {
+func (u *userServiceImpl) GenerateAuthCode(ctx context.Context, userID string, scope string) (string, error) {
 	authCode := uuid.New().String()
-	err := u.redis.Set(ctx, "auth_code:"+authCode, userID, 5*time.Minute).Err()
+	val := userID
+	if scope != "" {
+		val = userID + ":" + scope
+	}
+	err := u.redis.Set(ctx, "auth_code:"+authCode, val, 5*time.Minute).Err()
 	if err != nil {
 		return "", errors.New("failed to store session")
 	}
@@ -246,7 +245,7 @@ func (u *userServiceImpl) GetUser(ctx context.Context, userID string) (*dto.Join
 	return &joinUser, nil
 }
 
-func (u *userServiceImpl) GetToken(ctx context.Context, userID string, domainName string) (string, error) {
+func (u *userServiceImpl) GetToken(ctx context.Context, userID string, domainName string, scope string) (string, error) {
 	joinUser, queryError := u.GetUser(ctx, userID)
 	if queryError != nil {
 		return "", queryError
@@ -265,7 +264,7 @@ func (u *userServiceImpl) GetToken(ctx context.Context, userID string, domainNam
 	}
 
 	fullname := joinUser.Fullname
-	token, err := helper.GenerateToken(user, fullname, u.privateKey, domain)
+	token, err := helper.GenerateToken(user, fullname, u.privateKey, domain, scope)
 	if err != nil {
 		return "", errors.New("security signing failed")
 	}
