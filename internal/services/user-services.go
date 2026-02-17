@@ -255,13 +255,18 @@ func (u *userServiceImpl) GetToken(ctx context.Context, userID string, domainNam
 		return "", errors.New("user account does not exist")
 	}
 
-	var domain *models.Domain
-	if domainName != "" {
-		d, err := u.domainRepository.FindByName(domainName)
-		if err == nil {
-			domain = d
-		}
-	}
+	// Previously logic determined domain from name.
+	// Now logic uses scope string to determine access.
+	// For backward compat or simple implementation, we can parse scope to find roles/permissions?
+	// The prompt says "backend figure it out... consumer select scope".
+
+	// We pass 'scope' string to token generation?
+	// helper.GenerateToken currently takes *models.Domain.
+	// We should update helper.GenerateToken to take 'scope' string or figure out roles from scope.
+
+	// Assuming 'scope' contains space separated permissions/roles requested by client.
+	// We should intersect User Roles with Requested Scope?
+	// For now, let's update GenerateToken to accept scope string instead of Domain.
 
 	fullname := joinUser.Fullname
 	token, err := helper.GenerateToken(user, fullname, u.privateKey, domain, scope)
