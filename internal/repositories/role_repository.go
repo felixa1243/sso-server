@@ -8,6 +8,8 @@ import (
 
 type RoleRepository interface {
 	FindByName(name string) (*models.Role, error)
+	FindAll() ([]models.Role, error)
+	FindByIds(ids []string) ([]models.Role, error)
 }
 
 type roleRepositoryImpl struct {
@@ -20,8 +22,24 @@ func NewRoleRepository(db *gorm.DB) RoleRepository {
 
 func (r *roleRepositoryImpl) FindByName(name string) (*models.Role, error) {
 	var role models.Role
-	if err := r.db.Where("name = ?", name).First(&role).Error; err != nil {
+	if err := r.db.Preload("Domain").Preload("Permissions").Where("name = ?", name).First(&role).Error; err != nil {
 		return nil, err
 	}
 	return &role, nil
+}
+
+func (r *roleRepositoryImpl) FindAll() ([]models.Role, error) {
+	var roles []models.Role
+	if err := r.db.Preload("Domain").Preload("Permissions").Find(&roles).Error; err != nil {
+		return nil, err
+	}
+	return roles, nil
+}
+
+func (r *roleRepositoryImpl) FindByIds(ids []string) ([]models.Role, error) {
+	var roles []models.Role
+	if err := r.db.Preload("Domain").Preload("Permissions").Where("id IN ?", ids).Find(&roles).Error; err != nil {
+		return nil, err
+	}
+	return roles, nil
 }

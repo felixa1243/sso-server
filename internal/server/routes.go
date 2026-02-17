@@ -2,6 +2,7 @@ package server
 
 import (
 	"sso-server/internal/controllers"
+	"sso-server/internal/middleware"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -17,10 +18,12 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	injector := SetupDI(s.db.GetDB(), s.db.GetRedis(), s.PrivateKey, s.PublicKey)
 	// Resolve the AuthController
 	authControllers := do.MustInvoke[*controllers.AuthController](injector)
+	jwkController := do.MustInvoke[*controllers.JWKController](injector)
 	// Resolve Middleware
 	authMiddleware := do.MustInvoke[fiber.Handler](injector)
 
 	// Routes
+	s.App.Get("/.well-known/jwks.json", jwkController.GetJWKs)
 	s.App.Post("/register/reader", authControllers.ReaderRegister)
 	s.App.Post("/register/editor", authControllers.EditorRegister)
 	s.App.Post("/login", authControllers.Login)
@@ -30,6 +33,13 @@ func (s *FiberServer) RegisterFiberRoutes() {
 
 	// Protected Routes
 	s.App.Post("/change-password", authMiddleware, authControllers.ChangePassword)
+
+	// Admin Routes
+	userManagementController := do.MustInvoke[*controllers.UserManagementController](injector)
+	admin := s.App.Group("/admin", authMiddleware, middleware.AdminMiddleware)
+	admin.Get("/users", userManagementController.ListUsers)
+	admin.Delete("/users/:id", userManagementController.DeleteUser)
+	admin.Put("/users/:id/roles", userManagementController.UpdateUserRoles)
 }
 
 func (s *FiberServer) HelloWorldHandler(c *fiber.Ctx) error {
