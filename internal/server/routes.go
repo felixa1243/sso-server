@@ -36,12 +36,30 @@ func (s *FiberServer) RegisterFiberRoutes() {
 
 	// Admin Routes
 	userManagementController := do.MustInvoke[*controllers.UserManagementController](injector)
+	punishmentController := do.MustInvoke[*controllers.PunishmentController](injector)
+	rbacController := do.MustInvoke[*controllers.RBACController](injector)
+
 	admin := s.App.Group("/admin", authMiddleware, middleware.AdminMiddleware)
 	admin.Get("/users", userManagementController.ListUsers)
 	admin.Delete("/users/:id", userManagementController.DeleteUser)
 	admin.Put("/users/:id/roles", userManagementController.UpdateUserRoles)
 	admin.Put("/users/:id/ban", userManagementController.BanUser)
 	admin.Put("/users/:id/unban", userManagementController.UnbanUser)
+
+	// Punishment
+	admin.Post("/punishments", punishmentController.PunishUser)
+	admin.Get("/users/:id/punishments", punishmentController.GetUserPunishments)
+	admin.Delete("/punishments/:id", punishmentController.RevokePunishment)
+
+	// RBAC
+	admin.Get("/roles", rbacController.ListRoles)
+	admin.Post("/roles", rbacController.CreateRole)
+	admin.Put("/roles/:id", rbacController.UpdateRole)
+	admin.Delete("/roles/:id", rbacController.DeleteRole)
+	admin.Post("/roles/:id/permissions", rbacController.AssignPermissions)
+
+	admin.Get("/permissions", rbacController.ListPermissions)
+	admin.Post("/permissions", rbacController.CreatePermission)
 }
 
 func (s *FiberServer) HelloWorldHandler(c *fiber.Ctx) error {

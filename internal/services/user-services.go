@@ -35,6 +35,7 @@ type userServiceImpl struct {
 	profileRepository repositories.ProfileRepository
 	roleRepository    repositories.RoleRepository
 	domainRepository  repositories.DomainRepository
+	eventService      EventService
 	redis             *redis.Client
 	privateKey        *rsa.PrivateKey
 }
@@ -44,6 +45,7 @@ func NewUserServices(
 	profileRepository repositories.ProfileRepository,
 	roleRepository repositories.RoleRepository,
 	domainRepository repositories.DomainRepository,
+	eventService EventService,
 	redis *redis.Client,
 	privateKey *rsa.PrivateKey,
 ) UserService {
@@ -52,6 +54,7 @@ func NewUserServices(
 		profileRepository: profileRepository,
 		roleRepository:    roleRepository,
 		domainRepository:  domainRepository,
+		eventService:      eventService,
 		redis:             redis,
 		privateKey:        privateKey,
 	}
@@ -188,7 +191,16 @@ func (u *userServiceImpl) UpdateUserRoles(ctx context.Context, userID string, ro
 		return err
 	}
 
-	return u.userRepository.UpdateRoles(user, roles)
+	if err := u.userRepository.UpdateRoles(user, roles); err != nil {
+		return err
+	}
+
+	u.eventService.Publish(ctx, "user.promoted", map[string]interface{}{
+		"user_id": userID,
+		"roles": roles,
+	})
+
+	return nil
 }
 
 func (u *userServiceImpl) BanUser(ctx context.Context, userID string) error {

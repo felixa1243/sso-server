@@ -70,11 +70,19 @@ export default function AdminPage() {
             <div className="max-w-4xl mx-auto">
                 <div className="flex justify-between items-center mb-6">
                     <h1 className="text-2xl font-bold">User Management</h1>
-                    <button onClick={() => {
-                        localStorage.removeItem('token');
-                        localStorage.removeItem('user');
-                        router.push('/login');
-                    }} className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition">Logout</button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => router.push('/admin/roles')}
+                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
+                        >
+                            Manage Roles
+                        </button>
+                        <button onClick={() => {
+                            localStorage.removeItem('token');
+                            localStorage.removeItem('user');
+                            router.push('/login');
+                        }} className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition">Logout</button>
+                    </div>
                 </div>
 
                 <div className="bg-white shadow rounded-lg overflow-hidden">
@@ -123,6 +131,12 @@ export default function AdminPage() {
                                         )}
                                     </td>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                                        <button
+                                            onClick={() => router.push(`/admin/punishments/${user.ID}`)}
+                                            className="text-indigo-600 hover:text-indigo-900 mr-2"
+                                        >
+                                            Punish
+                                        </button>
                                         <button
                                             onClick={() => handleBan(user.ID, user.IsBanned)}
                                             className={`mr-2 ${user.IsBanned ? 'text-green-600 hover:text-green-900' : 'text-orange-600 hover:text-orange-900'}`}

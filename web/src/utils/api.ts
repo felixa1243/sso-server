@@ -32,6 +32,19 @@ export async function put(endpoint: string, token: string, body?: any) {
     return res;
 }
 
+export async function post(endpoint: string, token: string, body?: any) {
+    const res = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+        },
+        body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+}
+
 export async function del(endpoint: string, token: string) {
     const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'DELETE',
