@@ -22,7 +22,6 @@ func NewAuthController(userService services.UserService, clientAppService servic
 		ClientAppService: clientAppService,
 	}
 }
-
 func (ac *AuthController) createUser(c *fiber.Ctx, roleName string) (*models.User, map[string]string, error) {
 	var req dto.RegisterRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -92,9 +91,6 @@ func (ac *AuthController) Login(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"message": err.Error()})
 	}
 
-	// Simple validation for login if needed, though usually just email/pass presence
-	// helper.ValidateStruct(req) could be used if dto has tags. Assuming it does or minimal validation.
-
 	user, err := ac.UserService.Authenticate(c.Context(), req.Email, req.Password)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"message": err.Error()})
@@ -136,15 +132,27 @@ func (ac *AuthController) Login(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"message": err.Error()})
 	}
 
-	userDto, err := ac.UserService.GetUser(c.Context(), user.ID.String())
+	userLogin, err := ac.UserService.GetUser(c.Context(), user.ID.String())
+	var roleString strings.Builder
+	for i, role := range userLogin.Role {
+		if i > 0 && i < len(user.Role)-1 {
+			roleString.WriteString(",")
+		}
+		roleString.WriteString(role.Name)
+	}
+	response := &dto.UserLoginResponse{
+		Fullname:  userLogin.Fullname,
+		Email:     userLogin.Email,
+		Role:      roleString.String(),
+		AvatarURI: userLogin.AvatarURI,
+	}
 	if err != nil {
-		// Fallback if profile not found but user exists
-		userDto = &dto.JoinUser{Email: user.Email}
+		response = &dto.UserLoginResponse{}
 	}
 
 	return c.JSON(fiber.Map{
 		"access_token": token,
-		"user":         userDto,
+		"user":         response,
 	})
 }
 
@@ -189,7 +197,6 @@ func (ac *AuthController) ExchangeCode(c *fiber.Ctx) error {
 		},
 	})
 }
-
 
 func (ac *AuthController) Logout(c *fiber.Ctx) error {
 	token := c.Cookies("access_token")
