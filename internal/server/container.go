@@ -90,6 +90,7 @@ func SetupDI(db *gorm.DB, rdb *redis.Client, key *rsa.PrivateKey, publicKey *rsa
 	do.Provide(injector, func(i do.Injector) (services.ClientAppService, error) {
 		return services.NewClientAppService(
 			do.MustInvoke[repositories.ClientAppRepository](i),
+			do.MustInvoke[repositories.ScopeRepository](i),
 		), nil
 	})
 

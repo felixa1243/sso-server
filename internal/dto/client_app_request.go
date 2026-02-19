@@ -2,7 +2,7 @@ package dto
 
 type RegisterClientRequest struct {
 	Name         string `json:"name" validate:"required"`
-	RedirectURIs string `json:"redirect_uris" validate:"required"` // Comma-separated
+	RedirectURIs string `json:"redirect_uris" validate:"required"`
 	Scopes       string `json:"scopes" validate:"required"`
 }
 

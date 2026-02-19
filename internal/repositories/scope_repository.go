@@ -14,6 +14,7 @@ type ScopeRepository interface {
 	Create(scope *models.Scope) error
 	Update(scope *models.Scope) error
 	Delete(id string) error
+	FindByNames(names []string) ([]models.Scope, error)
 }
 
 type scopeRepositoryImpl struct {
@@ -66,4 +67,11 @@ func (r *scopeRepositoryImpl) Update(scope *models.Scope) error {
 
 func (r *scopeRepositoryImpl) Delete(id string) error {
 	return r.db.Delete(&models.Scope{}, "id = ?", id).Error
+}
+func (r *scopeRepositoryImpl) FindByNames(names []string) ([]models.Scope, error) {
+	var scopes []models.Scope
+	if err := r.db.Where("name IN ?", names).Find(&scopes).Error; err != nil {
+		return nil, err
+	}
+	return scopes, nil
 }

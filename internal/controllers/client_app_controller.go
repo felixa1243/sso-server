@@ -53,7 +53,7 @@ func (c *ClientAppController) List(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	var response []fiber.Map
+	response := []fiber.Map{}
 	for _, app := range apps {
 		response = append(response, fiber.Map{
 			"id":            app.ID,
@@ -64,5 +64,8 @@ func (c *ClientAppController) List(ctx *fiber.Ctx) error {
 		})
 	}
 
-	return ctx.JSON(response)
+	return ctx.JSON(fiber.Map{
+		"status": "success",
+		"data":   response,
+	})
 }

@@ -62,3 +62,6 @@ func (s *scopeServiceImpl) UpdateScope(ctx context.Context, id string, name stri
 func (s *scopeServiceImpl) DeleteScope(ctx context.Context, id string) error {
 	return s.scopeRepo.Delete(id)
 }
+func (s *scopeServiceImpl) FindByNames(ctx context.Context, names []string) ([]models.Scope, error) {
+	return s.scopeRepo.FindByNames(names)
+}

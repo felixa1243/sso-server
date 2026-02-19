@@ -8,6 +8,7 @@ import (
 	"sso-server/internal/dto"
 	"sso-server/internal/models"
 	"sso-server/internal/repositories"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,11 +22,12 @@ type ClientAppService interface {
 }
 
 type clientAppServiceImpl struct {
-	repo repositories.ClientAppRepository
+	repo            repositories.ClientAppRepository
+	scopeRepository repositories.ScopeRepository
 }
 
-func NewClientAppService(repo repositories.ClientAppRepository) ClientAppService {
-	return &clientAppServiceImpl{repo: repo}
+func NewClientAppService(repo repositories.ClientAppRepository, scopeRepository repositories.ScopeRepository) ClientAppService {
+	return &clientAppServiceImpl{repo: repo, scopeRepository: scopeRepository}
 }
 
 func (s *clientAppServiceImpl) RegisterClient(ctx context.Context, userID string, req dto.RegisterClientRequest) (*models.ClientApp, error) {
@@ -37,14 +39,18 @@ func (s *clientAppServiceImpl) RegisterClient(ctx context.Context, userID string
 	if err != nil {
 		return nil, err
 	}
-
+	scopeStrings := strings.Split(req.Scopes, ",")
+	scopes, err := s.scopeRepository.FindByNames(scopeStrings)
+	if err != nil {
+		return nil, err
+	}
 	app := &models.ClientApp{
 		ID:           uuid.New(),
 		Name:         req.Name,
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURIs: req.RedirectURIs,
-		Scopes:       req.Scopes,
+		Scopes:       scopes,
 		UserID:       uuid.MustParse(userID),
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
