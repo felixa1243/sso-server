@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"sso-server/internal/dto"
 	"sso-server/internal/services"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,10 +19,18 @@ func NewScopeController(scopeService services.ScopeService) *ScopeController {
 
 func (c *ScopeController) ListScopes(ctx *fiber.Ctx) error {
 	scopes, err := c.ScopeService.ListScopes(ctx.Context())
+	response := []dto.ScopeResponse{}
+	for _, scope := range scopes {
+		response = append(response, dto.ScopeResponse{
+			ID:          scope.ID.String(),
+			Name:        scope.Name,
+			Description: scope.Description,
+		})
+	}
 	if err != nil {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-	return ctx.JSON(scopes)
+	return ctx.JSON(response)
 }
 
 func (c *ScopeController) CreateScope(ctx *fiber.Ctx) error {
