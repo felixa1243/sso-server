@@ -216,29 +216,3 @@ func (ac *AuthController) Logout(c *fiber.Ctx) error {
 		"message": "Logged out successfully",
 	})
 }
-
-func (ac *AuthController) ChangePassword(c *fiber.Ctx) error {
-	var req dto.ChangePasswordRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"message": err.Error()})
-	}
-
-	if errs := helper.ValidateStruct(req); errs != nil {
-		return c.Status(400).JSON(fiber.Map{
-			"message": "validation error",
-			"errors":  errs,
-		})
-	}
-
-	user, err := helper.GetUserFromContext(c)
-	if err != nil {
-		return c.Status(401).JSON(fiber.Map{"message": "Unauthorized"})
-	}
-
-	err = ac.UserService.ChangePassword(c.Context(), user.ID.String(), req)
-	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"message": err.Error()})
-	}
-
-	return c.Status(200).JSON(fiber.Map{"message": "password changed successfully"})
-}

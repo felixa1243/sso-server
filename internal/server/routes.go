@@ -34,8 +34,11 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	clientAppController := do.MustInvoke[*controllers.ClientAppController](injector)
 	domainController := do.MustInvoke[*controllers.DomainController](injector)
 	scopeController := do.MustInvoke[*controllers.ScopeController](injector)
+	userProfileController := do.MustInvoke[controllers.UserProfileController](injector)
 
-	s.App.Post("/change-password", authMiddleware, authControllers.ChangePassword)
+	s.App.Post("/change-password", authMiddleware, userProfileController.ChangePassword)
+	s.App.Post("/change-profile", authMiddleware, userProfileController.ChangeUserProfile)
+	s.App.Post("/change-avatar", authMiddleware, userProfileController.ChangeProfilePicture)
 	s.App.Post("/clients", authMiddleware, clientAppController.Register)
 	s.App.Get("/clients", authMiddleware, clientAppController.List)
 	s.App.Post("/domains", authMiddleware, domainController.Register)
