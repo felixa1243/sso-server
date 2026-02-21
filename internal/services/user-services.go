@@ -29,6 +29,8 @@ type UserService interface {
 	UpdateUserRoles(ctx context.Context, userID string, roleIDs []string) error
 	BanUser(ctx context.Context, userID string) error
 	UnbanUser(ctx context.Context, userID string) error
+	ChangeAvatar(user models.User, avatar string) error
+	UpdateFullName(user models.User, fullName string) error
 }
 
 type userServiceImpl struct {
@@ -200,7 +202,7 @@ func (u *userServiceImpl) UpdateUserRoles(ctx context.Context, userID string, ro
 
 	u.eventService.Publish(ctx, "user.promoted", map[string]interface{}{
 		"user_id": userID,
-		"roles": roles,
+		"roles":   roles,
 	})
 
 	return nil
@@ -215,7 +217,7 @@ func (u *userServiceImpl) BanUser(ctx context.Context, userID string) error {
 		Reason:    "Banned by admin",
 		StartTime: time.Now(),
 		EndTime:   time.Now().Add(24 * 365 * 100 * time.Hour), // Indefinite
-		AdminID:   uuid.Nil, // Unknown admin
+		AdminID:   uuid.Nil,                                   // Unknown admin
 	}
 
 	if err := u.punishmentRepository.Create(&punishment); err != nil {
@@ -278,4 +280,20 @@ func (u *userServiceImpl) GetToken(ctx context.Context, userID string, domainNam
 		return "", errors.New("session storage failed")
 	}
 	return token, nil
+}
+func (u *userServiceImpl) ChangeAvatar(user models.User, avatar string) error {
+	user.Profile.AvatarURI = avatar
+	errUpdate := u.userRepository.Update(&user)
+	if errUpdate != nil {
+		return errUpdate
+	}
+	return nil
+}
+func (u *userServiceImpl) UpdateFullName(user models.User, fullName string) error {
+	user.Profile.FullName = fullName
+	errUpdate := u.userRepository.Update(&user)
+	if errUpdate != nil {
+		return errUpdate
+	}
+	return nil
 }

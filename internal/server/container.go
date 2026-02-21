@@ -112,6 +112,10 @@ func SetupDI(db *gorm.DB, rdb *redis.Client, key *rsa.PrivateKey, publicKey *rsa
 			do.MustInvoke[services.ClientAppService](i),
 		), nil
 	})
+	do.Provide(injector, func(i do.Injector) (controllers.UserProfileController, error) {
+		services := do.MustInvoke[services.UserService](i)
+		return controllers.NewUserProfileController(services), nil
+	})
 	do.Provide(injector, func(i do.Injector) (*controllers.JWKController, error) {
 		return controllers.NewJWKController(
 			do.MustInvoke[*rsa.PublicKey](i),

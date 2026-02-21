@@ -3,11 +3,9 @@ package controllers
 import (
 	"sso-server/internal/dto"
 	"sso-server/internal/helper"
-	"sso-server/internal/models"
 	"sso-server/internal/services"
 
 	"github.com/gofiber/fiber/v2"
-	"gorm.io/gorm"
 )
 
 type UserProfileController interface {
@@ -17,8 +15,7 @@ type UserProfileController interface {
 }
 
 type UserProfileControllerImpl struct {
-	db          *gorm.DB
-	UserService services.UserService // Needed for ChangePassword
+	UserService services.UserService
 }
 
 func (u *UserProfileControllerImpl) ChangePassword(c *fiber.Ctx) error {
@@ -64,8 +61,8 @@ func (u *UserProfileControllerImpl) ChangeProfilePicture(c *fiber.Ctx) error {
 		return c.Status(401).JSON(fiber.Map{"message": "Unauthorized"})
 	}
 
-	if err := u.db.Model(&models.UserProfile{}).Where("user_id = ?", user.ID).Update("avatar_uri", req.AvatarURI).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"message": "failed to update avatar"})
+	if err := u.UserService.ChangeAvatar(user, req.AvatarURI); err != nil {
+		return err
 	}
 
 	return c.Status(200).JSON(fiber.Map{"message": "avatar updated successfully", "avatar_uri": req.AvatarURI})
@@ -88,13 +85,13 @@ func (u *UserProfileControllerImpl) ChangeUserProfile(c *fiber.Ctx) error {
 		return c.Status(401).JSON(fiber.Map{"message": "Unauthorized"})
 	}
 
-	if err := u.db.Model(&models.UserProfile{}).Where("user_id = ?", user.ID).Update("full_name", req.FullName).Error; err != nil {
+	if err := u.UserService.UpdateFullName(user, req.FullName); err != nil {
 		return c.Status(500).JSON(fiber.Map{"message": "failed to update profile"})
 	}
 
 	return c.Status(200).JSON(fiber.Map{"message": "profile updated successfully", "full_name": req.FullName})
 }
 
-func NewUserProfileController(db *gorm.DB, userService services.UserService) UserProfileController {
-	return &UserProfileControllerImpl{db: db, UserService: userService}
+func NewUserProfileController(userService services.UserService) UserProfileController {
+	return &UserProfileControllerImpl{UserService: userService}
 }
