@@ -144,10 +144,9 @@ func (s *service) SeedPermissionsAndRoles() error {
 	}
 
 	perms := []models.Permission{
-		{Name: "View Blog", Slug: "blog:read"},
-		{Name: "Write Blog", Slug: "blog:write"},
-		{Name: "View Library", Slug: "library:read"},
-		{Name: "Write Library", Slug: "library:write"},
+		{Name: "All Access", Slug: "all:access"},
+		{Name: "Developer Access", Slug: "developer:access"},
+		{Name: "Basic Access", Slug: "basic:access"},
 	}
 
 	for _, p := range perms {
@@ -156,24 +155,27 @@ func (s *service) SeedPermissionsAndRoles() error {
 		}
 	}
 
-	var blogRead models.Permission
-	s.db.Where("slug = ?", "blog:read").First(&blogRead)
+	var allAccess models.Permission
+	s.db.Where("slug = ?", "all:access").First(&allAccess)
 
-	var blogWrite models.Permission
-	s.db.Where("slug = ?", "blog:write").First(&blogWrite)
+	var developerAccess models.Permission
+	s.db.Where("slug = ?", "developer:access").First(&developerAccess)
+
+	var basicAccess models.Permission
+	s.db.Where("slug = ?", "basic:access").First(&basicAccess)
 
 	roles := []models.Role{
 		{
-			Name:        "Blog:Reader",
-			Permissions: []models.Permission{blogRead},
+			Name:        "User",
+			Permissions: []models.Permission{basicAccess},
 		},
 		{
-			Name:        "Blog:Editor",
-			Permissions: []models.Permission{blogRead, blogWrite},
+			Name:        "Developer",
+			Permissions: []models.Permission{basicAccess, developerAccess},
 		},
 		{
 			Name:        "Administrator",
-			Permissions: []models.Permission{blogRead, blogWrite},
+			Permissions: []models.Permission{basicAccess, developerAccess, allAccess},
 		},
 	}
 	var UserCreated models.User

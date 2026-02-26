@@ -24,8 +24,7 @@ func (s *FiberServer) RegisterFiberRoutes() {
 
 	// Routes
 	s.App.Get("/.well-known/jwks.json", jwkController.GetJWKs)
-	s.App.Post("/register/reader", authControllers.ReaderRegister)
-	s.App.Post("/register/editor", authControllers.EditorRegister)
+	s.App.Post("/register", authControllers.Register)
 	s.App.Post("/login", authControllers.Login)
 	s.App.Post("/logout", authControllers.Logout)
 	s.App.Post("/exchange", authControllers.ExchangeCode)
@@ -52,6 +51,7 @@ func (s *FiberServer) RegisterFiberRoutes() {
 
 	admin := s.App.Group("/admin", authMiddleware, middleware.AdminMiddleware)
 	admin.Get("/users", userManagementController.ListUsers)
+	admin.Post("/users", userManagementController.AdminCreateUser)
 	admin.Delete("/users/:id", userManagementController.DeleteUser)
 	admin.Put("/users/:id/roles", userManagementController.UpdateUserRoles)
 	admin.Put("/users/:id/ban", userManagementController.BanUser)

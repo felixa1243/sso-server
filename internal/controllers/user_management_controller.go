@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"sso-server/internal/dto"
 	"sso-server/internal/services"
 
 	"github.com/gofiber/fiber/v2"
@@ -14,6 +15,25 @@ func NewUserManagementController(userService services.UserService) *UserManageme
 	return &UserManagementController{
 		UserService: userService,
 	}
+}
+
+func (c *UserManagementController) AdminCreateUser(ctx *fiber.Ctx) error {
+	var req dto.RegisterRequest
+	if err := ctx.BodyParser(&req); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	roleName := "User"
+	if req.Role != "" {
+		roleName = req.Role
+	}
+
+	user, err := c.UserService.CreateUser(ctx.Context(), req, roleName)
+	if err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return ctx.Status(fiber.StatusCreated).JSON(user)
 }
 
 func (c *UserManagementController) ListUsers(ctx *fiber.Ctx) error {

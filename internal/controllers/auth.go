@@ -22,6 +22,33 @@ func NewAuthController(userService services.UserService, clientAppService servic
 		ClientAppService: clientAppService,
 	}
 }
+
+func (ac *AuthController) Register(c *fiber.Ctx) error {
+	var req dto.RegisterRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"message": err.Error()})
+	}
+
+	if errs := helper.ValidateStruct(req); errs != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"message": "validation error",
+			"errors":  errs,
+		})
+	}
+
+	roleName := "User" // Default fallback
+
+	user, err := ac.UserService.CreateUser(c.Context(), req, roleName)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"message": err.Error()})
+	}
+	if user == nil {
+		return c.Status(500).JSON(fiber.Map{"message": "User creation failed unexpectedly"})
+	}
+
+	return c.Status(201).JSON(ac.mapUser(*user))
+}
+
 func (ac *AuthController) createUser(c *fiber.Ctx, roleName string) (*models.User, map[string]string, error) {
 	var req dto.RegisterRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -37,40 +64,6 @@ func (ac *AuthController) createUser(c *fiber.Ctx, roleName string) (*models.Use
 		return nil, nil, err
 	}
 	return user, nil, nil
-}
-
-func (ac *AuthController) ReaderRegister(c *fiber.Ctx) error {
-	user, valErrors, err := ac.createUser(c, "Blog:Reader")
-	if valErrors != nil {
-		return c.Status(400).JSON(fiber.Map{
-			"message": "validation error",
-			"errors":  valErrors,
-		})
-	}
-	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"message": err.Error()})
-	}
-	if user == nil {
-		return c.Status(500).JSON(fiber.Map{"message": "User creation failed unexpectedly"})
-	}
-	return c.Status(201).JSON(ac.mapUser(*user))
-}
-
-func (ac *AuthController) EditorRegister(c *fiber.Ctx) error {
-	user, valErrors, err := ac.createUser(c, "Blog:Editor")
-	if valErrors != nil {
-		return c.Status(400).JSON(fiber.Map{
-			"message": "validation error",
-			"errors":  valErrors,
-		})
-	}
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"message": err.Error()})
-	}
-	if user == nil {
-		return c.Status(500).JSON(fiber.Map{"message": "User creation failed unexpectedly"})
-	}
-	return c.Status(201).JSON(ac.mapUser(*user))
 }
 
 func (ac *AuthController) mapUser(user models.User) fiber.Map {
